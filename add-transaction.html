@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Transaction - Personal Finance App</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase CDN SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <div class="dashboard" style="max-width: 500px; margin: 50px auto;">
+        <h2>Add Transaction</h2>
+        <form onsubmit="addTransaction(event)">
+            <label>Amount (₹):</label><br>
+            <input type="number" id="amount" required style="width: 100%; padding: 8px; margin: 8px 0;"><br>
+
+            <label>Category:</label><br>
+            <input type="text" id="category" placeholder="e.g., Salary, Food, Rent" required style="width: 100%; padding: 8px; margin: 8px 0;"><br>
+
+            <label>Description:</label><br>
+            <input type="text" id="description" required style="width: 100%; padding: 8px; margin: 8px 0;"><br>
+
+            <label>Date:</label><br>
+            <input type="date" id="date" required style="width: 100%; padding: 8px; margin: 8px 0;"><br>
+
+            <label>Type:</label><br>
+            <select id="type" style="width: 100%; padding: 8px; margin: 8px 0;">
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+            </select><br><br>
+
+            <button type="submit" style="background: #2ea44f; color: white; padding: 10px 15px; border: none; cursor: pointer; border-radius: 4px;">Save Transaction</button>
+            <a href="dashboard.html" style="margin-left: 10px; color: #666;">Cancel</a>
+        </form>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
