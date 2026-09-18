@@ -1,31 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Personal Finance Management</title>
     <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
     <div class="login-container">
-
         <h1>Personal Finance Management</h1>
+        <h2 id="form-title">Login to App</h2>
 
-        <h2>Login</h2>
-
-        <form>
+        <form id="authForm">
             <label>Email</label>
-            <input type="email" placeholder="Enter your email">
+            <input type="email" id="auth-email" placeholder="Enter your email" required>
 
             <label>Password</label>
-            <input type="password" placeholder="Enter your password">
+            <input type="password" id="auth-password" placeholder="Enter your password" required>
 
-            <button type="submit">Login</button>
+            <button type="submit" id="auth-btn">Login</button>
         </form>
 
-        <p>Don't have an account? <a href="register.html">Register</a></p>
-
+        <p>
+            <span id="toggle-msg">Don't have an account?</span> 
+            <a href="#" id="toggle-btn" onclick="toggleMode()">Sign Up</a>
+        </p>
     </div>
 
+    <!-- Firebase SDK Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Main JavaScript File -->
+    <script src="script.js"></script>
 </body>
 </html>
