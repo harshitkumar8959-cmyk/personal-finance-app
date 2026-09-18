@@ -18,14 +18,32 @@ const db = firebase.firestore();
 let isSignUp = false;
 let myChart = null;
 
+// DOM Loaded Event Listener
+document.addEventListener("DOMContentLoaded", () => {
+    const authForm = document.getElementById("authForm");
+    if (authForm) {
+        authForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            handleAuth();
+        });
+    }
+
+    const transactionForm = document.getElementById("transactionForm");
+    if (transactionForm) {
+        transactionForm.addEventListener("submit", addTransaction);
+    }
+});
+
 // Auth State Observer
 auth.onAuthStateChanged(user => {
-    const isLoginPage = window.location.pathname.endsWith("login.html");
+    const path = window.location.pathname;
+    const isLoginPage = path.endsWith("index.html") || path.endsWith("login.html") || path === "/" || path.endsWith("/");
+
     if (user) {
         if (isLoginPage) window.location.href = "dashboard.html";
         else updateDashboard();
     } else {
-        if (!isLoginPage) window.location.href = "login.html";
+        if (!isLoginPage) window.location.href = "index.html";
     }
 });
 
@@ -51,17 +69,19 @@ function handleAuth() {
     if (isSignUp) {
         auth.createUserWithEmailAndPassword(email, password)
             .then(() => alert("Account successfully created!"))
-            .catch(err => alert(err.message));
+            .catch(err => alert("Error: " + err.message));
     } else {
         auth.signInWithEmailAndPassword(email, password)
-            .then(() => window.location.href = "dashboard.html")
-            .catch(err => alert(err.message));
+            .then(() => {
+                window.location.href = "dashboard.html";
+            })
+            .catch(err => alert("Login Error: " + err.message));
     }
 }
 
 // Logout Logic
 function logout() {
-    auth.signOut().then(() => window.location.href = "login.html");
+    auth.signOut().then(() => window.location.href = "index.html");
 }
 
 // Add Transaction to Firestore Cloud
@@ -91,7 +111,7 @@ function addTransaction(e) {
     }).then(() => {
         alert("Transaction successfully saved to Cloud!");
         window.location.href = "dashboard.html";
-    }).catch(err => alert(err.message));
+    }).catch(err => alert("Save Error: " + err.message));
 }
 
 // Delete Transaction from Firestore Cloud
