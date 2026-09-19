@@ -1,4 +1,4 @@
-// Firebase Configuration
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCHkgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
   authDomain: "personal-finance-app-7506a.firebaseapp.com",
@@ -8,178 +8,124 @@ const firebaseConfig = {
   appId: "1:975303702668:web:25cbfb91906d7b041e63a9"
 };
 
-// Initialize Firebase App
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-// Global Instances
 const auth = firebase.auth();
 const db = firebase.firestore();
 
 let currentUser = null;
+let rawTransactions = [];
+let financeChartInstance = null;
 
-// 1. User Registration Handler
-function registerUser() {
-  const emailInput = document.getElementById('register-email');
-  const passwordInput = document.getElementById('register-password');
+// Default Category Options
+const categories = {
+  income: ["Salary", "Business", "Freelance", "Investment", "Other Income"],
+  expense: ["Food & Grocery", "Rent", "Utilities", "Shopping", "Entertainment", "Health", "Travel", "Other Expense"]
+};
 
-  if (!emailInput || !passwordInput) return;
-
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-
-  if (!email || !password) {
-    alert("Please fill in both email and password!");
-    return;
+// Auto-set today's date in form
+document.addEventListener("DOMContentLoaded", () => {
+  const dateInput = document.getElementById('date');
+  if (dateInput) {
+    dateInput.value = new Date().toISOString().split('T')[0];
   }
+  updateCategoryOptions();
+});
+
+function updateCategoryOptions() {
+  const typeSelect = document.getElementById('type');
+  const catSelect = document.getElementById('category');
+  if (!typeSelect || !catSelect) return;
+
+  const selectedType = typeSelect.value;
+  catSelect.innerHTML = categories[selectedType]
+    .map(c => `<option value="${c}">${c}</option>`)
+    .join('');
+}
+
+// 1. Auth Handlers
+function registerUser() {
+  const email = document.getElementById('register-email')?.value.trim();
+  const password = document.getElementById('register-password')?.value;
+  if (!email || !password) return alert("Fill all fields!");
 
   auth.createUserWithEmailAndPassword(email, password)
-    .then(() => {
-      alert("Account created successfully!");
-      window.location.href = 'dashboard.html';
-    })
-    .catch((error) => {
-      console.error("Registration Error:", error);
-      alert("Error: " + error.message);
-    });
+    .then(() => window.location.href = 'dashboard.html')
+    .catch(err => alert("Error: " + err.message));
 }
 
-// 2. User Login Handler
 function loginUser() {
-  const emailInput = document.getElementById('login-email');
-  const passwordInput = document.getElementById('login-password');
-
-  if (!emailInput || !passwordInput) return;
-
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-
-  if (!email || !password) {
-    alert("Please enter both email and password!");
-    return;
-  }
+  const email = document.getElementById('login-email')?.value.trim();
+  const password = document.getElementById('login-password')?.value;
+  if (!email || !password) return alert("Fill all fields!");
 
   auth.signInWithEmailAndPassword(email, password)
-    .then(() => {
-      window.location.href = 'dashboard.html';
-    })
-    .catch((error) => {
-      console.error("Login Error:", error);
-      alert("Error: " + error.message);
-    });
+    .then(() => window.location.href = 'dashboard.html')
+    .catch(err => alert("Error: " + err.message));
 }
 
-// 3. Show / Hide Password Toggle
-function togglePassword(inputId, iconElement) {
-  const passwordInput = document.getElementById(inputId);
-  if (!passwordInput) return;
-
-  if (passwordInput.type === "password") {
-    passwordInput.type = "text";
-    iconElement.textContent = "🙈";
-  } else {
-    passwordInput.type = "password";
-    iconElement.textContent = "👁️";
-  }
+function logoutUser() {
+  auth.signOut().then(() => window.location.href = 'login.html');
 }
 
-// 4. Forgot Password Reset Handler
+function togglePassword(inputId, icon) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.type = input.type === "password" ? "text" : "password";
+  icon.textContent = input.type === "password" ? "👁️" : "🙈";
+}
+
 function handleForgotPassword() {
-  const email = prompt("Enter your registered Email address:");
-
-  if (email === null) return;
-
-  const trimmedEmail = email.trim();
-
-  if (trimmedEmail === "") {
-    alert("Email address cannot be empty!");
-    return;
+  const email = prompt("Enter email address:");
+  if (email) {
+    auth.sendPasswordResetEmail(email.trim())
+      .then(() => alert("Reset email sent!"))
+      .catch(err => alert("Error: " + err.message));
   }
-
-  auth.sendPasswordResetEmail(trimmedEmail)
-    .then(() => {
-      alert("Password reset email sent! Please check your Inbox and Spam/Junk folder.");
-    })
-    .catch((error) => {
-      console.error("Password Reset Failed:", error);
-      if (error.code === 'auth/user-not-found') {
-        alert("Is email address se koi account registered nahi hai.");
-      } else if (error.code === 'auth/invalid-email') {
-        alert("Kripya sahi email format daalein.");
-      } else {
-        alert("Reset Error: " + error.message);
-      }
-    });
 }
 
-// 5. Auth State Observer
+// 2. Auth State Observer
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
     const isDashboard = window.location.pathname.includes('dashboard.html');
     const isLogin = window.location.pathname.includes('login.html');
     const isRegister = window.location.pathname.includes('register.html');
-
-    const userEmailElement = document.getElementById('user-email-display');
+    const userEmailEl = document.getElementById('user-email-display');
 
     if (user) {
       currentUser = user;
-      if (userEmailElement) {
-        userEmailElement.textContent = user.email;
-      }
-      if (isLogin || isRegister) {
-        window.location.href = 'dashboard.html';
-      }
-      if (isDashboard) {
-        fetchTransactionsRealtime();
-      }
+      if (userEmailEl) userEmailEl.textContent = user.email;
+      if (isLogin || isRegister) window.location.href = 'dashboard.html';
+      if (isDashboard) fetchTransactionsRealtime();
     } else {
       currentUser = null;
-      if (isDashboard) {
-        window.location.href = 'login.html';
-      }
+      if (isDashboard) window.location.href = 'login.html';
     }
   });
 }
-
 checkAuthState();
 
-// 6. User Logout Handler
-function logoutUser() {
-  auth.signOut()
-    .then(() => {
-      alert("Logged out successfully!");
-      window.location.href = 'login.html';
-    })
-    .catch((error) => {
-      console.error("Logout Error:", error);
-      alert("Error logging out: " + error.message);
-    });
-}
-
-// --- FIRESTORE DATABASE LOGIC ---
-
-// Add Transaction
+// 3. Firestore Logic
 function addTransaction(e) {
   e.preventDefault();
-
-  if (!currentUser) {
-    alert("User session invalid. Please log in again.");
-    return;
-  }
+  if (!currentUser) return;
 
   const desc = document.getElementById('desc').value.trim();
   const amount = parseFloat(document.getElementById('amount').value);
   const type = document.getElementById('type').value;
-  const addBtn = document.getElementById('add-btn');
+  const category = document.getElementById('category').value;
+  const date = document.getElementById('date').value;
+  const btn = document.getElementById('add-btn');
 
-  if (!desc || isNaN(amount) || amount <= 0) {
-    alert("Please enter a valid description and amount!");
+  if (!desc || isNaN(amount) || amount <= 0 || !date) {
+    alert("Please enter valid details!");
     return;
   }
 
-  addBtn.disabled = true;
-  addBtn.textContent = "Saving...";
+  btn.disabled = true;
+  btn.textContent = "Saving...";
 
   db.collection("users")
     .doc(currentUser.uid)
@@ -188,38 +134,33 @@ function addTransaction(e) {
       desc: desc,
       amount: amount,
       type: type,
-      date: new Date().toLocaleDateString(),
+      category: category,
+      date: date,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     })
     .then(() => {
       document.getElementById('transaction-form').reset();
+      document.getElementById('date').value = new Date().toISOString().split('T')[0];
+      updateCategoryOptions();
     })
-    .catch((error) => {
-      console.error("Error adding transaction:", error);
-      alert("Failed to save: " + error.message);
-    })
+    .catch(err => alert("Save failed: " + err.message))
     .finally(() => {
-      addBtn.disabled = false;
-      addBtn.textContent = "Add Transaction";
+      btn.disabled = false;
+      btn.textContent = "Add Transaction";
     });
 }
 
-// Delete Transaction
 function deleteTransaction(id) {
   if (!currentUser) return;
-
-  db.collection("users")
-    .doc(currentUser.uid)
-    .collection("transactions")
-    .doc(id)
-    .delete()
-    .catch((error) => {
-      console.error("Error deleting transaction:", error);
-      alert("Error deleting item: " + error.message);
-    });
+  if (confirm("Delete this transaction?")) {
+    db.collection("users")
+      .doc(currentUser.uid)
+      .collection("transactions")
+      .doc(id)
+      .delete();
+  }
 }
 
-// Fetch Realtime Transactions
 function fetchTransactionsRealtime() {
   if (!currentUser) return;
 
@@ -228,51 +169,136 @@ function fetchTransactionsRealtime() {
     .collection("transactions")
     .orderBy("createdAt", "desc")
     .onSnapshot((snapshot) => {
-      const list = document.getElementById('transaction-list');
-      const totalBalanceEl = document.getElementById('total-balance');
-      const totalIncomeEl = document.getElementById('total-income');
-      const totalExpenseEl = document.getElementById('total-expense');
-
-      if (!list || !totalBalanceEl) return;
-
-      list.innerHTML = '';
-      let income = 0;
-      let expense = 0;
-
-      if (snapshot.empty) {
-        list.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">No transactions added yet.</li>';
-      } else {
-        snapshot.forEach((doc) => {
-          const t = doc.data();
-          const docId = doc.id;
-
-          if (t.type === 'income') {
-            income += t.amount;
-          } else {
-            expense += t.amount;
-          }
-
-          const li = document.createElement('li');
-          li.className = `transaction-item ${t.type}`;
-          li.innerHTML = `
-            <div class="item-details">
-              <span class="item-title">${t.desc}</span>
-              <span class="item-date">${t.date || ''}</span>
-            </div>
-            <div style="display: flex; align-items: center;">
-              <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
-              <button class="delete-btn" onclick="deleteTransaction('${docId}')">✖</button>
-            </div>
-          `;
-          list.appendChild(li);
-        });
-      }
-
-      const balance = income - expense;
-      totalBalanceEl.textContent = `₹${balance.toFixed(2)}`;
-      totalIncomeEl.textContent = `₹${income.toFixed(2)}`;
-      totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
-    }, (error) => {
-      console.error("Firestore Listen Error:", error);
+      rawTransactions = [];
+      snapshot.forEach(doc => {
+        rawTransactions.push({ id: doc.id, ...doc.data() });
+      });
+      populateFilterDropdowns();
+      applyFilters();
     });
+}
+
+// 4. Filtering & Rendering Logic
+function populateFilterDropdowns() {
+  const filterCat = document.getElementById('filter-category');
+  if (!filterCat) return;
+
+  const uniqueCategories = [...new Set(rawTransactions.map(t => t.category || "General"))];
+  filterCat.innerHTML = `<option value="all">All Categories</option>` +
+    uniqueCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function applyFilters() {
+  const catVal = document.getElementById('filter-category').value;
+  const monthVal = document.getElementById('filter-month').value;
+
+  let filtered = rawTransactions;
+
+  if (catVal !== "all") {
+    filtered = filtered.filter(t => (t.category || "General") === catVal);
+  }
+
+  if (monthVal) {
+    filtered = filtered.filter(t => t.date && t.date.startsWith(monthVal));
+  }
+
+  renderUI(filtered);
+}
+
+function resetFilters() {
+  document.getElementById('filter-category').value = "all";
+  document.getElementById('filter-month').value = "";
+  renderUI(rawTransactions);
+}
+
+function renderUI(dataList) {
+  const list = document.getElementById('transaction-list');
+  const totalBalanceEl = document.getElementById('total-balance');
+  const totalIncomeEl = document.getElementById('total-income');
+  const totalExpenseEl = document.getElementById('total-expense');
+
+  if (!list) return;
+
+  list.innerHTML = '';
+  let income = 0, expense = 0;
+
+  if (dataList.length === 0) {
+    list.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">No matching transactions.</li>';
+  } else {
+    dataList.forEach(t => {
+      if (t.type === 'income') income += t.amount;
+      else expense += t.amount;
+
+      const li = document.createElement('li');
+      li.className = `transaction-item ${t.type}`;
+      li.innerHTML = `
+        <div>
+          <div class="item-title">${t.desc}</div>
+          <div class="item-meta">${t.category || 'General'} • ${t.date}</div>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
+          <button class="delete-btn" onclick="deleteTransaction('${t.id}')">Delete</button>
+        </div>
+      `;
+      list.appendChild(li);
+    });
+  }
+
+  const balance = income - expense;
+  totalBalanceEl.textContent = `₹${balance.toFixed(2)}`;
+  totalIncomeEl.textContent = `₹${income.toFixed(2)}`;
+  totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
+
+  updateChart(income, expense);
+}
+
+// 5. Chart.js Integration
+function updateChart(income, expense) {
+  const ctx = document.getElementById('financeChart');
+  if (!ctx) return;
+
+  if (financeChartInstance) {
+    financeChartInstance.destroy();
+  }
+
+  financeChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Income', 'Expense'],
+      datasets: [{
+        data: [income, expense],
+        backgroundColor: ['#2ecc71', '#e74c3c'],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+}
+
+// 6. Export to CSV Feature
+function exportToCSV() {
+  if (rawTransactions.length === 0) {
+    alert("No data available to export!");
+    return;
+  }
+
+  let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Type,Category,Date\n";
+
+  rawTransactions.forEach(t => {
+    csvContent += `"${t.desc}",${t.amount},${t.type},"${t.category || 'General'}",${t.date}\n`;
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `Finance_Report_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
