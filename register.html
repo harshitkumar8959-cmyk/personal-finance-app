@@ -1,40 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Register - Personal Finance Management</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - Personal Finance Manager</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 </head>
-
 <body>
+  <div class="container">
+    <h2>Sign Up</h2>
+    <form id="register-form" onsubmit="event.preventDefault();">
+      <div class="input-group">
+        <input type="email" id="register-email" placeholder="Email" required>
+      </div>
 
-    <div class="login-container">
+      <div class="input-group" style="position: relative;">
+        <input type="password" id="register-password" placeholder="Password" required>
+        <span onclick="togglePassword('register-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer;">👁️</span>
+      </div>
 
-        <h1>Personal Finance Management</h1>
+      <button type="submit" onclick="registerUser()" style="margin-top: 15px;">Register</button>
+    </form>
+    <p style="margin-top: 15px;">Already have an account? <a href="login.html">Login here</a></p>
+  </div>
 
-        <h2>Create Account</h2>
-
-        <form>
-            <label>Full Name</label>
-            <input type="text" placeholder="Enter your name">
-
-            <label>Email</label>
-            <input type="email" placeholder="Enter your email">
-
-            <label>Password</label>
-            <input type="password" placeholder="Create password">
-
-            <label>Confirm Password</label>
-            <input type="password" placeholder="Confirm password">
-
-            <button type="submit">Register</button>
-        </form>
-
-        <p>
-            Already have an account?
-            <a href="index.html">Login</a>
-        </p>
-
-    </div>
-
+  <script src="script.js"></script>
 </body>
 </html>
