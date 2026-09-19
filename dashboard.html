@@ -95,7 +95,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 
   <!-- Chart.js Engine -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -124,7 +123,7 @@
       <button class="dark-mode-toggle" id="theme-toggle-btn" onclick="toggleDarkMode()">🌙 Dark</button>
       
       <!-- Profile Picture Avatar & Name -->
-      <img id="user-avatar" class="profile-avatar" src="https://via.placeholder.com/150" alt="Profile" onclick="openProfileModal()">
+      <img id="user-avatar" class="profile-avatar" src="https://ui-avatars.com/api/?name=User&background=3498db&color=fff" alt="Profile" onclick="openProfileModal()">
       <span class="user-email" id="user-display-name" style="font-weight:bold; cursor:pointer;" onclick="openProfileModal()">Loading...</span>
       
       <button class="logout-btn" onclick="logoutUser()">Logout</button>
@@ -141,16 +140,16 @@
       
       <!-- Profile Picture Upload -->
       <div class="form-group" style="text-align: center;">
-        <img id="modal-avatar-preview" src="https://via.placeholder.com/150" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid #3498db;">
-        <input type="file" id="profile-pic-input" accept="image/*" style="font-size: 12px;">
-        <button class="btn-primary" style="padding: 5px; font-size: 12px; margin-top: 5px;" onclick="uploadProfilePicture()">Upload Picture</button>
+        <img id="modal-avatar-preview" src="https://ui-avatars.com/api/?name=User&background=3498db&color=fff" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid #3498db;">
+        <input type="file" id="profile-pic-input" accept="image/*" style="font-size: 12px; margin-bottom: 8px; width: 100%;">
+        <button type="button" class="btn-primary" id="btn-upload-pic" onclick="uploadProfilePicture()" style="padding: 8px; font-size: 13px;">Upload Picture</button>
       </div>
 
       <!-- Update Name -->
       <div class="form-group">
         <label>Display Name</label>
         <input type="text" id="profile-name-input" placeholder="Enter Full Name">
-        <button class="btn-primary" onclick="updateUserProfileName()">Update Name</button>
+        <button type="button" class="btn-primary" onclick="updateUserProfileName()">Update Name</button>
       </div>
 
       <hr style="margin: 15px 0; border: none; border-top: 1px solid var(--border-color);">
@@ -158,7 +157,7 @@
       <!-- Reset Password Section -->
       <div class="form-group">
         <label>Security Settings</label>
-        <button class="btn-warning" onclick="sendPasswordResetEmail()">Reset Password via Email</button>
+        <button type="button" class="btn-warning" onclick="sendPasswordResetEmail()">Reset Password via Email</button>
       </div>
     </div>
   </div>
@@ -167,15 +166,15 @@
   <div class="summary-grid">
     <div class="card balance-card">
       <h3>Total Balance</h3>
-      <p id="total-balance">₹0.00</p>
+      <p id="total-balance"><span class="currency-symbol">₹</span>0.00</p>
     </div>
     <div class="card income-card">
       <h3>Total Income</h3>
-      <p id="total-income">₹0.00</p>
+      <p id="total-income"><span class="currency-symbol">₹</span>0.00</p>
     </div>
     <div class="card expense-card">
       <h3>Total Expense</h3>
-      <p id="total-expense">₹0.00</p>
+      <p id="total-expense"><span class="currency-symbol">₹</span>0.00</p>
     </div>
   </div>
 
@@ -269,6 +268,6 @@
     </ul>
   </div>
 
-  <script src="script.js?v=10"></script>
+  <script src="script.js?v=20"></script>
 </body>
 </html>
