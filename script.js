@@ -1,4 +1,4 @@
-// Complete Firebase Configuration
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCHkgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
   authDomain: "personal-finance-app-7506a.firebaseapp.com",
@@ -15,6 +15,9 @@ if (!firebase.apps.length) {
 
 // Global Auth Instance
 const auth = firebase.auth();
+
+// Global Array to store transactions in local memory
+let transactions = JSON.parse(localStorage.getItem('user_transactions')) || [];
 
 // 1. User Registration Handler
 function registerUser() {
@@ -85,9 +88,7 @@ function togglePassword(inputId, iconElement) {
 function handleForgotPassword() {
   const email = prompt("Enter your registered Email address:");
 
-  if (email === null) {
-    return;
-  }
+  if (email === null) return;
 
   const trimmedEmail = email.trim();
 
@@ -102,13 +103,10 @@ function handleForgotPassword() {
     })
     .catch((error) => {
       console.error("Password Reset Failed:", error);
-      
       if (error.code === 'auth/user-not-found') {
         alert("Is email address se koi account registered nahi hai.");
       } else if (error.code === 'auth/invalid-email') {
         alert("Kripya sahi email format daalein.");
-      } else if (error.code === 'auth/unauthorized-domain') {
-        alert("Domain issue: Firebase Console mein Domain Authorized nahi hai.");
       } else {
         alert("Reset Error: " + error.message);
       }
@@ -118,29 +116,33 @@ function handleForgotPassword() {
 // 5. Auth State Observer (Protect Routes Automatically)
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
-    // Current file ka name fetch karein
-    const path = window.location.pathname;
-    const currentPage = path.substring(path.lastIndexOf('/') + 1);
+    const isDashboard = window.location.pathname.includes('dashboard.html');
+    const isLogin = window.location.pathname.includes('login.html');
+    const isRegister = window.location.pathname.includes('register.html');
 
-    // Dynamic User Email Display (agar element exist karta hai)
     const userEmailElement = document.getElementById('user-email-display');
-    if (userEmailElement && user) {
-      userEmailElement.textContent = user.email;
-    }
 
-    // Unauthenticated user attempting to view Dashboard
-    if (!user && (currentPage === 'dashboard.html' || currentPage === '')) {
-      window.location.href = 'login.html';
-    }
-    
-    // Already authenticated user attempting to view Login/Register
-    if (user && (currentPage === 'login.html' || currentPage === 'register.html')) {
-      window.location.href = 'dashboard.html';
+    if (user) {
+      // User is Logged In
+      if (userEmailElement) {
+        userEmailElement.textContent = user.email;
+      }
+      if (isLogin || isRegister) {
+        window.location.href = 'dashboard.html';
+      }
+      if (isDashboard) {
+        renderDashboard();
+      }
+    } else {
+      // User is NOT Logged In
+      if (isDashboard) {
+        window.location.href = 'login.html';
+      }
     }
   });
 }
 
-// Run protection check automatically on page load
+// Run auth check
 checkAuthState();
 
 // 6. User Logout Handler
@@ -154,4 +156,93 @@ function logoutUser() {
       console.error("Logout Error:", error);
       alert("Error logging out: " + error.message);
     });
+}
+
+// --- DASHBOARD TRACKER LOGIC ---
+
+// Add Transaction
+function addTransaction(e) {
+  e.preventDefault();
+
+  const desc = document.getElementById('desc').value.trim();
+  const amount = parseFloat(document.getElementById('amount').value);
+  const type = document.getElementById('type').value;
+
+  if (!desc || isNaN(amount) || amount <= 0) {
+    alert("Please enter a valid description and amount!");
+    return;
+  }
+
+  const transaction = {
+    id: Date.now(),
+    desc: desc,
+    amount: amount,
+    type: type,
+    date: new Date().toLocaleDateString()
+  };
+
+  transactions.push(transaction);
+  saveAndRender();
+
+  // Reset Form
+  document.getElementById('transaction-form').reset();
+}
+
+// Delete Transaction
+function deleteTransaction(id) {
+  transactions = transactions.filter(t => t.id !== id);
+  saveAndRender();
+}
+
+// Save to Local Storage & Render UI
+function saveAndRender() {
+  localStorage.setItem('user_transactions', JSON.stringify(transactions));
+  renderDashboard();
+}
+
+// Render Dashboard UI
+function renderDashboard() {
+  const list = document.getElementById('transaction-list');
+  const totalBalanceEl = document.getElementById('total-balance');
+  const totalIncomeEl = document.getElementById('total-income');
+  const totalExpenseEl = document.getElementById('total-expense');
+
+  if (!list || !totalBalanceEl) return;
+
+  list.innerHTML = '';
+
+  let income = 0;
+  let expense = 0;
+
+  if (transactions.length === 0) {
+    list.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">No transactions added yet.</li>';
+  } else {
+    transactions.forEach(t => {
+      if (t.type === 'income') {
+        income += t.amount;
+      } else {
+        expense += t.amount;
+      }
+
+      const li = document.createElement('li');
+      li.className = `transaction-item ${t.type}`;
+      li.innerHTML = `
+        <div class="item-details">
+          <span class="item-title">${t.desc}</span>
+          <span class="item-date">${t.date}</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+          <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
+          <button class="delete-btn" onclick="deleteTransaction(${t.id})">✖</button>
+        </div>
+      `;
+      list.appendChild(li);
+    });
+  }
+
+  const balance = income - expense;
+
+  totalBalanceEl.textContent = `₹${balance.toFixed(2)}`;
+  totalIncomeEl.textContent = `₹${income.toFixed(2)}`;
+  totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
 }
