@@ -1,4 +1,4 @@
-// Firebase Configuration (From Firebase Console)
+// Complete Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCHkgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
   authDomain: "personal-finance-app-7506a.firebaseapp.com",
@@ -108,9 +108,50 @@ function handleForgotPassword() {
       } else if (error.code === 'auth/invalid-email') {
         alert("Kripya sahi email format daalein.");
       } else if (error.code === 'auth/unauthorized-domain') {
-        alert("Domain issue: Firebase Console mein Netlify Link (Authorized Domains) add karein.");
+        alert("Domain issue: Firebase Console mein Domain Authorized nahi hai.");
       } else {
         alert("Reset Error: " + error.message);
       }
+    });
+}
+
+// 5. Auth State Observer (Protect Routes Automatically)
+function checkAuthState() {
+  auth.onAuthStateChanged((user) => {
+    // Current file ka name fetch karein
+    const path = window.location.pathname;
+    const currentPage = path.substring(path.lastIndexOf('/') + 1);
+
+    // Dynamic User Email Display (agar element exist karta hai)
+    const userEmailElement = document.getElementById('user-email-display');
+    if (userEmailElement && user) {
+      userEmailElement.textContent = user.email;
+    }
+
+    // Unauthenticated user attempting to view Dashboard
+    if (!user && (currentPage === 'dashboard.html' || currentPage === '')) {
+      window.location.href = 'login.html';
+    }
+    
+    // Already authenticated user attempting to view Login/Register
+    if (user && (currentPage === 'login.html' || currentPage === 'register.html')) {
+      window.location.href = 'dashboard.html';
+    }
+  });
+}
+
+// Run protection check automatically on page load
+checkAuthState();
+
+// 6. User Logout Handler
+function logoutUser() {
+  auth.signOut()
+    .then(() => {
+      alert("Logged out successfully!");
+      window.location.href = 'login.html';
+    })
+    .catch((error) => {
+      console.error("Logout Error:", error);
+      alert("Error logging out: " + error.message);
     });
 }
