@@ -1,4 +1,4 @@
-// Firebase Configuration (Real Credentials)
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCHKgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
   authDomain: "personal-finance-app-7506a.firebaseapp.com",
