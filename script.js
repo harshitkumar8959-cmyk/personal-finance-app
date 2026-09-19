@@ -1,12 +1,11 @@
-// Firebase Configuration
-// NOTE: Apne Firebase Console (Project Settings -> General -> Web App) se REAL credentials yahan paste karein
+// Firebase Configuration (Real Credentials)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCHKgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
+  authDomain: "personal-finance-app-7506a.firebaseapp.com",
+  projectId: "personal-finance-app-7506a",
+  storageBucket: "personal-finance-app-7506a.firebasestorage.app",
+  messagingSenderId: "975303702668",
+  appId: "1:975303702668:web:25cbfb91906d7b041e63a9"
 };
 
 // Initialize Firebase App
@@ -82,12 +81,11 @@ function togglePassword(inputId, iconElement) {
   }
 }
 
-// 4. Forgot Password Reset Handler (FIXED)
+// 4. Forgot Password Reset Handler
 function handleForgotPassword() {
   const email = prompt("Enter your registered Email address:");
 
   if (email === null) {
-    // User clicked Cancel
     return;
   }
 
@@ -98,7 +96,6 @@ function handleForgotPassword() {
     return;
   }
 
-  // Direct Firebase Authentication Trigger
   auth.sendPasswordResetEmail(trimmedEmail)
     .then(() => {
       alert("Password reset email sent! Please check your Inbox and Spam/Junk folder.");
@@ -106,7 +103,6 @@ function handleForgotPassword() {
     .catch((error) => {
       console.error("Password Reset Failed:", error);
       
-      // Clear human-readable error alerts
       if (error.code === 'auth/user-not-found') {
         alert("Is email address se koi account registered nahi hai.");
       } else if (error.code === 'auth/invalid-email') {
