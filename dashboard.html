@@ -54,7 +54,6 @@
       background-color: #c0392b;
     }
 
-    /* Summary Cards */
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -81,7 +80,6 @@
     .income-card p { color: #2ecc71; }
     .expense-card p { color: #e74c3c; }
 
-    /* Main Section Layout */
     .main-grid {
       display: grid;
       grid-template-columns: 1fr 1.5fr;
@@ -136,7 +134,6 @@
       background-color: #2980b9;
     }
 
-    /* Transactions List */
     .transaction-list {
       list-style: none;
     }
@@ -182,10 +179,10 @@
   <!-- Firebase v9 Compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
-  <!-- Top Header -->
   <div class="header">
     <h1>Personal Finance Dashboard</h1>
     <div class="user-info">
@@ -194,7 +191,6 @@
     </div>
   </div>
 
-  <!-- Balance Cards -->
   <div class="summary-grid">
     <div class="card balance-card">
       <h3>Total Balance</h3>
@@ -210,9 +206,7 @@
     </div>
   </div>
 
-  <!-- Form & History Section -->
   <div class="main-grid">
-    <!-- Form Card -->
     <div class="form-card">
       <h2 class="section-title">Add New Transaction</h2>
       <form id="transaction-form" onsubmit="addTransaction(event)">
@@ -231,20 +225,18 @@
             <option value="expense">Expense</option>
           </select>
         </div>
-        <button type="submit" class="add-btn">Add Transaction</button>
+        <button type="submit" class="add-btn" id="add-btn">Add Transaction</button>
       </form>
     </div>
 
-    <!-- History List Card -->
     <div class="list-card">
       <h2 class="section-title">Recent Transactions</h2>
       <ul class="transaction-list" id="transaction-list">
-        <li style="text-align: center; color: #888; padding: 20px;">No transactions added yet.</li>
+        <li style="text-align: center; color: #888; padding: 20px;">Loading transactions...</li>
       </ul>
     </div>
   </div>
 
-  <!-- JavaScript File -->
   <script src="script.js"></script>
 </body>
 </html>
