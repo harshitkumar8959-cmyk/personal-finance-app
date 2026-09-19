@@ -4,27 +4,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Register - Personal Finance Manager</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f9; margin: 0; }
+    .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 320px; }
+    .form-group { margin-bottom: 1rem; position: relative; }
+    input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    .toggle-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; user-select: none; }
+    button { width: 100%; padding: 10px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background-color: #219150; }
+    .links { display: flex; justify-content: center; margin-top: 1rem; font-size: 0.85rem; }
+    a { color: #3498db; text-decoration: none; }
+  </style>
+
+  <!-- Firebase v9 Compat Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h2>Sign Up</h2>
-    <form id="register-form" onsubmit="event.preventDefault();">
-      <div class="input-group">
-        <input type="email" id="register-email" placeholder="Email" required>
-      </div>
 
-      <div class="input-group" style="position: relative;">
-        <input type="password" id="register-password" placeholder="Password" required>
-        <span onclick="togglePassword('register-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer;">👁️</span>
-      </div>
+  <div class="card">
+    <h2>Register</h2>
+    <div class="form-group">
+      <input type="email" id="register-email" placeholder="Email" required>
+    </div>
+    <div class="form-group">
+      <input type="password" id="register-password" placeholder="Password" required>
+      <span class="toggle-icon" onclick="togglePassword('register-password', this)">👁️</span>
+    </div>
+    <button onclick="registerUser()">Register</button>
 
-      <button type="submit" onclick="registerUser()" style="margin-top: 15px;">Register</button>
-    </form>
-    <p style="margin-top: 15px;">Already have an account? <a href="login.html">Login here</a></p>
+    <div class="links">
+      Already have an account? &nbsp;<a href="login.html">Login here</a>
+    </div>
   </div>
- <script src="script.js?v=3.0"></script>
+
+  <!-- Cache Bypass Link for script.js -->
+  <script src="script.js?v=3.0"></script>
 </body>
 </html>
