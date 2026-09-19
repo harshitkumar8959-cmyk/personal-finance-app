@@ -17,6 +17,7 @@ const db = firebase.firestore();
 
 let currentUser = null;
 let rawTransactions = [];
+let filteredTransactions = [];
 let financeChartInstance = null;
 let currentMonthlyBudget = 0;
 
@@ -295,7 +296,7 @@ function fetchTransactionsRealtime() {
     });
 }
 
-// Filters & Dynamic Rendering
+// Filters & Dynamic Search
 function populateFilterDropdowns() {
   const filterCat = document.getElementById('filter-category');
   if (!filterCat) return;
@@ -306,38 +307,32 @@ function populateFilterDropdowns() {
 }
 
 function applyFilters() {
+  const searchQuery = (document.getElementById('search-query')?.value || '').toLowerCase().trim();
   const accountVal = document.getElementById('global-account-filter').value;
   const catVal = document.getElementById('filter-category').value;
   const modeVal = document.getElementById('filter-payment-mode').value;
   const monthVal = document.getElementById('filter-month').value;
 
-  let filtered = rawTransactions;
+  filteredTransactions = rawTransactions.filter(t => {
+    const matchesSearch = !searchQuery || (t.desc || t.description || '').toLowerCase().includes(searchQuery);
+    const matchesAccount = accountVal === "all" || (t.account || "Personal") === accountVal;
+    const matchesCat = catVal === "all" || (t.category || "General") === catVal;
+    const matchesMode = modeVal === "all" || (t.paymentMode || "UPI") === modeVal;
+    const matchesMonth = !monthVal || (t.date && t.date.startsWith(monthVal));
 
-  if (accountVal !== "all") {
-    filtered = filtered.filter(t => (t.account || "Personal") === accountVal);
-  }
+    return matchesSearch && matchesAccount && matchesCat && matchesMode && matchesMonth;
+  });
 
-  if (catVal !== "all") {
-    filtered = filtered.filter(t => (t.category || "General") === catVal);
-  }
-
-  if (modeVal !== "all") {
-    filtered = filtered.filter(t => (t.paymentMode || "UPI") === modeVal);
-  }
-
-  if (monthVal) {
-    filtered = filtered.filter(t => t.date && t.date.startsWith(monthVal));
-  }
-
-  renderUI(filtered);
+  renderUI(filteredTransactions);
 }
 
 function resetFilters() {
+  if (document.getElementById('search-query')) document.getElementById('search-query').value = "";
   document.getElementById('global-account-filter').value = "all";
   document.getElementById('filter-category').value = "all";
   document.getElementById('filter-payment-mode').value = "all";
   document.getElementById('filter-month').value = "";
-  renderUI(rawTransactions);
+  applyFilters();
 }
 
 // UI Render & Chart Integration
@@ -353,7 +348,7 @@ function renderUI(dataList) {
   let income = 0, expense = 0;
 
   if (dataList.length === 0) {
-    list.innerHTML = '<li style="text-align: center; color: var(--subtext-color); padding: 20px;">No matching transactions.</li>';
+    list.innerHTML = '<li style="text-align: center; color: var(--subtext-color); padding: 20px;">No matching transactions found.</li>';
   } else {
     dataList.forEach(t => {
       if (t.type === 'income') income += t.amount;
@@ -451,14 +446,14 @@ function updateChart(income, expense) {
 
 // Export CSV
 function exportToCSV() {
-  if (rawTransactions.length === 0) {
+  if (filteredTransactions.length === 0) {
     alert("No data available to export!");
     return;
   }
 
   let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Account,Payment Mode,Type,Category,Date\n";
 
-  rawTransactions.forEach(t => {
+  filteredTransactions.forEach(t => {
     const title = t.desc || t.description || 'Transaction';
     csvContent += `"${title}",${t.amount},"${t.account || 'Personal'}","${t.paymentMode || 'UPI'}",${t.type},"${t.category || 'General'}",${t.date}\n`;
   });
@@ -470,4 +465,50 @@ function exportToCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// PDF Invoice/Statement Report Generation
+function exportToPDF() {
+  if (filteredTransactions.length === 0) {
+    alert("No transactions to generate PDF!");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  // Header Section
+  doc.setFontSize(18);
+  doc.setTextColor(44, 62, 80);
+  doc.text("Account Statement / Report", 14, 20);
+
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`User: ${currentUser ? currentUser.email : 'N/A'}`, 14, 28);
+  doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 14, 34);
+
+  // Table Data Mapping
+  const tableData = filteredTransactions.map(t => [
+    t.date || '',
+    t.desc || t.description || 'Transaction',
+    t.category || 'General',
+    t.account || 'Personal',
+    t.paymentMode || 'UPI',
+    t.type.toUpperCase(),
+    `INR ${t.amount.toFixed(2)}`
+  ]);
+
+  // Generate AutoTable
+  doc.autoTable({
+    startY: 40,
+    head: [['Date', 'Description', 'Category', 'Account', 'Mode', 'Type', 'Amount']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [52, 152, 219] },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    styles: { fontSize: 9 }
+  });
+
+  // Save PDF File
+  doc.save(`Finance_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
 }
