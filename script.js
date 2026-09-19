@@ -143,7 +143,7 @@ function saveMonthlyBudget() {
   }).catch(err => alert("Failed to save budget: " + err.message));
 }
 
-// Savings Goals Logic (Firestore Realtime - Index Safe)
+// Savings Goals Logic
 function addSavingsGoal(e) {
   e.preventDefault();
   if (!currentUser) return;
@@ -229,6 +229,8 @@ function addTransaction(e) {
 
   const desc = document.getElementById('desc').value.trim();
   const amount = parseFloat(document.getElementById('amount').value);
+  const account = document.getElementById('account').value;
+  const paymentMode = document.getElementById('payment-mode').value;
   const type = document.getElementById('type').value;
   const category = document.getElementById('category').value;
   const date = document.getElementById('date').value;
@@ -248,6 +250,8 @@ function addTransaction(e) {
     .add({
       desc: desc,
       amount: amount,
+      account: account || 'Personal',
+      paymentMode: paymentMode || 'UPI',
       type: type,
       category: category,
       date: date,
@@ -302,13 +306,23 @@ function populateFilterDropdowns() {
 }
 
 function applyFilters() {
+  const accountVal = document.getElementById('global-account-filter').value;
   const catVal = document.getElementById('filter-category').value;
+  const modeVal = document.getElementById('filter-payment-mode').value;
   const monthVal = document.getElementById('filter-month').value;
 
   let filtered = rawTransactions;
 
+  if (accountVal !== "all") {
+    filtered = filtered.filter(t => (t.account || "Personal") === accountVal);
+  }
+
   if (catVal !== "all") {
     filtered = filtered.filter(t => (t.category || "General") === catVal);
+  }
+
+  if (modeVal !== "all") {
+    filtered = filtered.filter(t => (t.paymentMode || "UPI") === modeVal);
   }
 
   if (monthVal) {
@@ -319,7 +333,9 @@ function applyFilters() {
 }
 
 function resetFilters() {
+  document.getElementById('global-account-filter').value = "all";
   document.getElementById('filter-category').value = "all";
+  document.getElementById('filter-payment-mode').value = "all";
   document.getElementById('filter-month').value = "";
   renderUI(rawTransactions);
 }
@@ -345,6 +361,8 @@ function renderUI(dataList) {
 
       const itemTitle = t.desc || t.description || 'Transaction';
       const itemCategory = t.category || 'General';
+      const itemAccount = t.account || 'Personal';
+      const itemMode = t.paymentMode || 'UPI';
       const itemDate = t.date || '';
       const icon = categoryIcons[itemCategory] || '📌';
 
@@ -353,7 +371,12 @@ function renderUI(dataList) {
       li.innerHTML = `
         <div>
           <div class="item-title"><span>${icon}</span> ${itemTitle}</div>
-          <div class="item-meta">${itemCategory} • ${itemDate}</div>
+          <div class="item-meta">
+            <span>${itemCategory}</span> • 
+            <span>${itemDate}</span> 
+            <span class="badge">📂 ${itemAccount}</span>
+            <span class="badge">💳 ${itemMode}</span>
+          </div>
         </div>
         <div style="display: flex; align-items: center;">
           <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
@@ -433,11 +456,11 @@ function exportToCSV() {
     return;
   }
 
-  let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Type,Category,Date\n";
+  let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Account,Payment Mode,Type,Category,Date\n";
 
   rawTransactions.forEach(t => {
     const title = t.desc || t.description || 'Transaction';
-    csvContent += `"${title}",${t.amount},${t.type},"${t.category || 'General'}",${t.date}\n`;
+    csvContent += `"${title}",${t.amount},"${t.account || 'Personal'}","${t.paymentMode || 'UPI'}",${t.type},"${t.category || 'General'}",${t.date}\n`;
   });
 
   const encodedUri = encodeURI(csvContent);
