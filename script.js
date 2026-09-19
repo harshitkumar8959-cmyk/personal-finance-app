@@ -14,29 +14,43 @@ if (!firebase.apps.length) {
 
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 let currentUser = null;
 let rawTransactions = [];
 let filteredTransactions = [];
 let financeChartInstance = null;
-let currentMonthlyBudget = 0;
 
-// Category Definitions & Dynamic Icons
+// Currency Global Configuration
+const currencyMap = {
+  "INR": "₹",
+  "USD": "$",
+  "EUR": "€"
+};
+let selectedCurrency = localStorage.getItem('user_currency') || "INR";
+
+function changeCurrency() {
+  const selector = document.getElementById('currency-selector');
+  if (selector) {
+    selectedCurrency = selector.value;
+    localStorage.setItem('user_currency', selectedCurrency);
+    updateCurrencySymbolsUI();
+    applyFilters();
+  }
+}
+
+function updateCurrencySymbolsUI() {
+  const symbol = currencyMap[selectedCurrency] || "₹";
+  document.querySelectorAll('.currency-symbol').forEach(el => {
+    el.textContent = symbol;
+  });
+}
+
+// Category Icons & Definitions
 const categoryIcons = {
-  "Salary": "💰",
-  "Business": "🏢",
-  "Freelance": "💻",
-  "Investment": "📈",
-  "Other Income": "💵",
-  "Food & Grocery": "🍔",
-  "Shopping": "🛍️",
-  "Rent": "🏠",
-  "Utilities": "⚡",
-  "Entertainment": "🎬",
-  "Health": "🏥",
-  "Travel": "✈️",
-  "Other Expense": "💸",
-  "General": "📌"
+  "Salary": "💰", "Business": "🏢", "Freelance": "💻", "Investment": "📈", "Other Income": "💵",
+  "Food & Grocery": "🍔", "Shopping": "🛍️", "Rent": "🏠", "Utilities": "⚡", "Entertainment": "🎬", 
+  "Health": "🏥", "Travel": "✈️", "Other Expense": "💸", "General": "📌"
 };
 
 const categories = {
@@ -62,9 +76,70 @@ function toggleDarkMode() {
   localStorage.setItem('app-theme', newTheme);
   applyTheme(newTheme);
 }
+applyTheme(localStorage.getItem('app-theme') || 'light');
 
-const savedTheme = localStorage.getItem('app-theme') || 'light';
-applyTheme(savedTheme);
+// Modal Controller for Profile & Security
+function openProfileModal() {
+  document.getElementById('profile-modal').classList.add('active');
+  if (currentUser) {
+    document.getElementById('profile-name-input').value = currentUser.displayName || '';
+  }
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal').classList.remove('active');
+}
+
+// User Profile & Security Settings Logic
+function updateUserProfileName() {
+  const newName = document.getElementById('profile-name-input').value.trim();
+  if (!newName) {
+    alert("Please enter a valid Name!");
+    return;
+  }
+
+  currentUser.updateProfile({
+    displayName: newName
+  }).then(() => {
+    document.getElementById('user-display-name').textContent = newName;
+    alert("Profile name updated successfully!");
+    closeProfileModal();
+  }).catch(err => alert("Error updating name: " + err.message));
+}
+
+function uploadProfilePicture() {
+  const fileInput = document.getElementById('profile-pic-input');
+  const file = fileInput.files[0];
+  if (!file) {
+    alert("Please select an image first!");
+    return;
+  }
+
+  const storageRef = storage.ref(`profile_pics/${currentUser.uid}`);
+  storageRef.put(file).then((snapshot) => {
+    snapshot.ref.getDownloadURL().then((url) => {
+      currentUser.updateProfile({ photoURL: url }).then(() => {
+        document.getElementById('user-avatar').src = url;
+        document.getElementById('modal-avatar-preview').src = url;
+        alert("Profile picture updated!");
+        closeProfileModal();
+      });
+    });
+  }).catch(err => alert("Upload failed: " + err.message));
+}
+
+function sendPasswordResetEmail() {
+  if (!currentUser || !currentUser.email) return;
+
+  if (confirm(`Send password reset email to ${currentUser.email}?`)) {
+    auth.sendPasswordResetEmail(currentUser.email)
+      .then(() => {
+        alert("Password reset email sent! Check your inbox.");
+        closeProfileModal();
+      })
+      .catch(err => alert("Error: " + err.message));
+  }
+}
 
 // App Initialization
 function initAppUI() {
@@ -72,6 +147,9 @@ function initAppUI() {
   if (dateInput && !dateInput.value) {
     dateInput.value = new Date().toISOString().split('T')[0];
   }
+  const currSelect = document.getElementById('currency-selector');
+  if (currSelect) currSelect.value = selectedCurrency;
+  updateCurrencySymbolsUI();
   updateCategoryOptions();
 }
 
@@ -86,7 +164,7 @@ function updateCategoryOptions() {
     .join('');
 }
 
-// Auth Handlers
+// Auth State Monitor
 function logoutUser() {
   auth.signOut().then(() => window.location.href = 'login.html');
 }
@@ -94,16 +172,22 @@ function logoutUser() {
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
     const isDashboard = window.location.pathname.includes('dashboard.html');
-    const userEmailEl = document.getElementById('user-email-display');
+    const userDisplayEl = document.getElementById('user-display-name');
+    const userAvatarEl = document.getElementById('user-avatar');
+    const modalAvatarEl = document.getElementById('modal-avatar-preview');
 
     if (user) {
       currentUser = user;
-      if (userEmailEl) userEmailEl.textContent = user.email;
+      const displayName = user.displayName || user.email.split('@')[0];
+      const photoURL = user.photoURL || 'https://via.placeholder.com/150';
+
+      if (userDisplayEl) userDisplayEl.textContent = displayName;
+      if (userAvatarEl) userAvatarEl.src = photoURL;
+      if (modalAvatarEl) modalAvatarEl.src = photoURL;
+
       if (isDashboard) {
         initAppUI();
-        loadUserSettings();
         fetchTransactionsRealtime();
-        fetchSavingsGoalsRealtime();
       }
     } else {
       currentUser = null;
@@ -113,117 +197,7 @@ function checkAuthState() {
 }
 checkAuthState();
 
-// Monthly Budget Settings (Firestore)
-function loadUserSettings() {
-  if (!currentUser) return;
-  db.collection("users").doc(currentUser.uid).get().then(doc => {
-    if (doc.exists && doc.data().monthlyBudget) {
-      currentMonthlyBudget = doc.data().monthlyBudget;
-      const budgetInput = document.getElementById('monthly-budget-input');
-      if (budgetInput) budgetInput.value = currentMonthlyBudget;
-    }
-  });
-}
-
-function saveMonthlyBudget() {
-  if (!currentUser) return;
-  const input = document.getElementById('monthly-budget-input');
-  const budgetVal = parseFloat(input.value);
-
-  if (isNaN(budgetVal) || budgetVal <= 0) {
-    alert("Please enter a valid budget amount!");
-    return;
-  }
-
-  db.collection("users").doc(currentUser.uid).set({
-    monthlyBudget: budgetVal
-  }, { merge: true }).then(() => {
-    currentMonthlyBudget = budgetVal;
-    alert("Monthly Budget Saved!");
-    applyFilters();
-  }).catch(err => alert("Failed to save budget: " + err.message));
-}
-
-// Savings Goals Logic
-function addSavingsGoal(e) {
-  e.preventDefault();
-  if (!currentUser) return;
-
-  const title = document.getElementById('goal-title').value.trim();
-  const target = parseFloat(document.getElementById('goal-target').value);
-  const saved = parseFloat(document.getElementById('goal-saved').value);
-
-  if (!title || isNaN(target) || isNaN(saved) || target <= 0) {
-    alert("Please enter valid Goal info!");
-    return;
-  }
-
-  db.collection("users")
-    .doc(currentUser.uid)
-    .collection("goals")
-    .add({
-      title: title,
-      target: target,
-      saved: saved,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    })
-    .then(() => {
-      document.getElementById('goal-title').value = '';
-      document.getElementById('goal-target').value = '';
-      document.getElementById('goal-saved').value = '';
-    })
-    .catch(err => alert("Goal save failed: " + err.message));
-}
-
-function deleteGoal(goalId) {
-  if (!currentUser) return;
-  if (confirm("Delete this savings goal?")) {
-    db.collection("users").doc(currentUser.uid).collection("goals").doc(goalId).delete();
-  }
-}
-
-function fetchSavingsGoalsRealtime() {
-  if (!currentUser) return;
-
-  db.collection("users")
-    .doc(currentUser.uid)
-    .collection("goals")
-    .onSnapshot((snapshot) => {
-      const goalsList = document.getElementById('goals-list');
-      if (!goalsList) return;
-
-      goalsList.innerHTML = '';
-      if (snapshot.empty) {
-        goalsList.innerHTML = '<p style="color: var(--subtext-color); font-size: 13px; grid-column: 1 / -1; padding: 10px 0;">No savings goals added yet. Add one above!</p>';
-        return;
-      }
-
-      snapshot.forEach(doc => {
-        const goal = doc.data();
-        const targetVal = Number(goal.target) || 1;
-        const savedVal = Number(goal.saved) || 0;
-        const percent = Math.min((savedVal / targetVal) * 100, 100).toFixed(1);
-
-        const goalCard = document.createElement('div');
-        goalCard.className = 'goal-item';
-        goalCard.innerHTML = `
-          <div class="goal-title">
-            <span>🎯 ${goal.title}</span>
-            <button onclick="deleteGoal('${doc.id}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold;">✖</button>
-          </div>
-          <div style="font-size: 12px; color: var(--subtext-color);">₹${savedVal.toFixed(2)} / ₹${targetVal.toFixed(2)} (${percent}%)</div>
-          <div class="goal-progress-bg">
-            <div class="goal-progress-bar" style="width: ${percent}%;"></div>
-          </div>
-        `;
-        goalsList.appendChild(goalCard);
-      });
-    }, (error) => {
-      console.error("Error fetching goals: ", error);
-    });
-}
-
-// Transaction Firestore Operations
+// Add & Fetch Transactions
 function addTransaction(e) {
   e.preventDefault();
   if (!currentUser) return;
@@ -272,11 +246,7 @@ function addTransaction(e) {
 function deleteTransaction(id) {
   if (!currentUser) return;
   if (confirm("Delete this transaction?")) {
-    db.collection("users")
-      .doc(currentUser.uid)
-      .collection("transactions")
-      .doc(id)
-      .delete();
+    db.collection("users").doc(currentUser.uid).collection("transactions").doc(id).delete();
   }
 }
 
@@ -296,7 +266,7 @@ function fetchTransactionsRealtime() {
     });
 }
 
-// Filters & Dynamic Search
+// Filter Engine
 function populateFilterDropdowns() {
   const filterCat = document.getElementById('filter-category');
   if (!filterCat) return;
@@ -335,12 +305,13 @@ function resetFilters() {
   applyFilters();
 }
 
-// UI Render & Chart Integration
+// UI Rendering
 function renderUI(dataList) {
   const list = document.getElementById('transaction-list');
   const totalBalanceEl = document.getElementById('total-balance');
   const totalIncomeEl = document.getElementById('total-income');
   const totalExpenseEl = document.getElementById('total-expense');
+  const symbol = currencyMap[selectedCurrency] || "₹";
 
   if (!list) return;
 
@@ -374,7 +345,7 @@ function renderUI(dataList) {
           </div>
         </div>
         <div style="display: flex; align-items: center;">
-          <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
+          <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${symbol}${t.amount.toFixed(2)}</span>
           <button class="delete-btn" onclick="deleteTransaction('${t.id}')">✖</button>
         </div>
       `;
@@ -383,39 +354,11 @@ function renderUI(dataList) {
   }
 
   const balance = income - expense;
-  totalBalanceEl.textContent = `₹${balance.toFixed(2)}`;
-  totalIncomeEl.textContent = `₹${income.toFixed(2)}`;
-  totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
+  totalBalanceEl.textContent = `${symbol}${balance.toFixed(2)}`;
+  totalIncomeEl.textContent = `${symbol}${income.toFixed(2)}`;
+  totalExpenseEl.textContent = `${symbol}${expense.toFixed(2)}`;
 
   updateChart(income, expense);
-  updateBudgetProgress(expense);
-}
-
-// Budget Progress Calculator
-function updateBudgetProgress(currentTotalExpense) {
-  const progressBar = document.getElementById('budget-progress-bar');
-  const budgetStatus = document.getElementById('budget-status');
-  if (!progressBar || !budgetStatus) return;
-
-  if (currentMonthlyBudget <= 0) {
-    progressBar.style.width = '0%';
-    budgetStatus.textContent = "Set target budget for current month";
-    return;
-  }
-
-  const percentage = Math.min((currentTotalExpense / currentMonthlyBudget) * 100, 100);
-  progressBar.style.width = `${percentage}%`;
-
-  if (percentage < 70) {
-    progressBar.style.backgroundColor = '#2ecc71';
-    budgetStatus.textContent = `Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
-  } else if (percentage < 90) {
-    progressBar.style.backgroundColor = '#f39c12';
-    budgetStatus.textContent = `Warning: Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
-  } else {
-    progressBar.style.backgroundColor = '#e74c3c';
-    budgetStatus.textContent = `Alert: High spending! Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
-  }
 }
 
 function updateChart(income, expense) {
@@ -455,7 +398,8 @@ function exportToCSV() {
     return;
   }
 
-  let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Account,Payment Mode,Type,Category,Date\n";
+  const symbol = currencyMap[selectedCurrency] || "₹";
+  let csvContent = `data:text/csv;charset=utf-8,Description,Amount (${selectedCurrency}),Account,Payment Mode,Type,Category,Date\n`;
 
   listToExport.forEach(t => {
     const title = t.desc || t.description || 'Transaction';
@@ -471,7 +415,7 @@ function exportToCSV() {
   document.body.removeChild(link);
 }
 
-// Reliable PDF Invoice / Statement Report Generation
+// PDF Export (Printing Engine Native)
 function exportToPDF() {
   const listToExport = (typeof filteredTransactions !== 'undefined' && filteredTransactions.length > 0)
     ? filteredTransactions 
@@ -482,58 +426,62 @@ function exportToPDF() {
     return;
   }
 
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+  const symbol = currencyMap[selectedCurrency] || "₹";
+  const printWindow = window.open('', '_blank');
+  
+  let rowsHtml = listToExport.map(t => `
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ddd;">${t.date || '-'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${t.desc || t.description || 'Transaction'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${t.category || 'General'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${t.account || 'Personal'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${t.paymentMode || 'UPI'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${(t.type || '').toUpperCase()}</td>
+      <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${symbol}${Number(t.amount || 0).toFixed(2)}</td>
+    </tr>
+  `).join('');
 
-    // Document Header
-    doc.setFontSize(18);
-    doc.setTextColor(44, 62, 80);
-    doc.text("Account Statement / Report", 14, 20);
-
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`User: ${currentUser ? currentUser.email : 'N/A'}`, 14, 28);
-    doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 14, 34);
-
-    // Prepare table data (Emojis stripped to prevent PDF crash)
-    const tableData = listToExport.map(t => [
-      t.date || '-',
-      (t.desc || t.description || 'Transaction').replace(/[^\x00-\x7F]/g, ""), 
-      (t.category || 'General').replace(/[^\x00-\x7F]/g, ""),
-      t.account || 'Personal',
-      t.paymentMode || 'UPI',
-      t.type ? t.type.toUpperCase() : 'N/A',
-      `Rs. ${Number(t.amount || 0).toFixed(2)}`
-    ]);
-
-    // Use autoTable safely
-    if (typeof doc.autoTable === 'function') {
-      doc.autoTable({
-        startY: 40,
-        head: [['Date', 'Description', 'Category', 'Account', 'Mode', 'Type', 'Amount']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [52, 152, 219] },
-        alternateRowStyles: { fillColor: [245, 247, 250] },
-        styles: { fontSize: 8, cellPadding: 3 }
-      });
-    } else if (window.jspdfAutoTable) {
-      window.jspdfAutoTable(doc, {
-        startY: 40,
-        head: [['Date', 'Description', 'Category', 'Account', 'Mode', 'Type', 'Amount']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [52, 152, 219] },
-        alternateRowStyles: { fillColor: [245, 247, 250] },
-        styles: { fontSize: 8, cellPadding: 3 }
-      });
-    }
-
-    // Save File
-    doc.save(`Finance_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
-  } catch (error) {
-    console.error("PDF Export Error:", error);
-    alert("PDF generate karne me error aaya: " + error.message);
-  }
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Account Statement Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+          h2 { color: #2c3e50; margin-bottom: 5px; }
+          p { color: #666; font-size: 12px; margin-top: 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+          th { background-color: #3498db; color: white; padding: 10px; border: 1px solid #2980b9; text-align: left; }
+        </style>
+      </head>
+      <body>
+        <h2>Account Statement / Report</h2>
+        <p>User: ${currentUser ? (currentUser.displayName || currentUser.email) : 'N/A'}</p>
+        <p>Currency: ${selectedCurrency} (${symbol})</p>
+        <p>Generated On: ${new Date().toLocaleDateString()}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Account</th>
+              <th>Mode</th>
+              <th>Type</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() { window.close(); }, 500);
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
