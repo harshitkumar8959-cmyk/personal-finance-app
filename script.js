@@ -18,14 +18,55 @@ const db = firebase.firestore();
 let currentUser = null;
 let rawTransactions = [];
 let financeChartInstance = null;
+let currentMonthlyBudget = 0;
 
-// Categories Definition
-const categories = {
-  income: ["Salary", "Business", "Freelance", "Investment", "Other Income"],
-  expense: ["Food & Grocery", "Rent", "Utilities", "Shopping", "Entertainment", "Health", "Travel", "Other Expense"]
+// Category Definitions & Dynamic Icons
+const categoryIcons = {
+  "Salary": "💰",
+  "Business": "🏢",
+  "Freelance": "💻",
+  "Investment": "📈",
+  "Other Income": "💵",
+  "Food & Grocery": "🍔",
+  "Shopping": "🛍️",
+  "Rent": "🏠",
+  "Utilities": "⚡",
+  "Entertainment": "🎬",
+  "Health": "🏥",
+  "Travel": "✈️",
+  "Other Expense": "💸",
+  "General": "📌"
 };
 
-// Initial Setup
+const categories = {
+  income: ["Salary", "Business", "Freelance", "Investment", "Other Income"],
+  expense: ["Food & Grocery", "Shopping", "Rent", "Utilities", "Entertainment", "Health", "Travel", "Other Expense"]
+};
+
+// Dark Mode Toggle Logic
+function applyTheme(theme) {
+  const toggleBtn = document.getElementById('theme-toggle-btn');
+  if (theme === 'dark') {
+    document.body.classList.add('dark-theme');
+    if (toggleBtn) toggleBtn.textContent = '☀️ Light';
+  } else {
+    document.body.classList.remove('dark-theme');
+    if (toggleBtn) toggleBtn.textContent = '🌙 Dark';
+  }
+}
+
+function toggleDarkMode() {
+  const isDark = document.body.classList.contains('dark-theme');
+  const newTheme = isDark ? 'light' : 'dark';
+  localStorage.setItem('app-theme', newTheme);
+  applyTheme(newTheme);
+}
+
+// Initial Theme Loading
+const savedTheme = localStorage.getItem('app-theme') || 'light';
+applyTheme(savedTheme);
+
+// App Initialization
 function initAppUI() {
   const dateInput = document.getElementById('date');
   if (dateInput && !dateInput.value) {
@@ -41,7 +82,7 @@ function updateCategoryOptions() {
 
   const selectedType = typeSelect.value || 'income';
   catSelect.innerHTML = categories[selectedType]
-    .map(c => `<option value="${c}">${c}</option>`)
+    .map(c => `<option value="${c}">${categoryIcons[c] || '📌'} ${c}</option>`)
     .join('');
 }
 
@@ -70,23 +111,6 @@ function logoutUser() {
   auth.signOut().then(() => window.location.href = 'login.html');
 }
 
-function togglePassword(inputId, icon) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  input.type = input.type === "password" ? "text" : "password";
-  icon.textContent = input.type === "password" ? "👁️" : "🙈";
-}
-
-function handleForgotPassword() {
-  const email = prompt("Enter email address:");
-  if (email) {
-    auth.sendPasswordResetEmail(email.trim())
-      .then(() => alert("Reset email sent!"))
-      .catch(err => alert("Error: " + err.message));
-  }
-}
-
-// Auth State Listener
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
     const isDashboard = window.location.pathname.includes('dashboard.html');
@@ -100,6 +124,7 @@ function checkAuthState() {
       if (isLogin || isRegister) window.location.href = 'dashboard.html';
       if (isDashboard) {
         initAppUI();
+        loadUserSettings();
         fetchTransactionsRealtime();
       }
     } else {
@@ -110,7 +135,38 @@ function checkAuthState() {
 }
 checkAuthState();
 
-// Firestore Operations
+// Monthly Budget Settings (Firestore)
+function loadUserSettings() {
+  if (!currentUser) return;
+  db.collection("users").doc(currentUser.uid).get().then(doc => {
+    if (doc.exists && doc.data().monthlyBudget) {
+      currentMonthlyBudget = doc.data().monthlyBudget;
+      const budgetInput = document.getElementById('monthly-budget-input');
+      if (budgetInput) budgetInput.value = currentMonthlyBudget;
+    }
+  });
+}
+
+function saveMonthlyBudget() {
+  if (!currentUser) return;
+  const input = document.getElementById('monthly-budget-input');
+  const budgetVal = parseFloat(input.value);
+
+  if (isNaN(budgetVal) || budgetVal <= 0) {
+    alert("Please enter a valid budget amount!");
+    return;
+  }
+
+  db.collection("users").doc(currentUser.uid).set({
+    monthlyBudget: budgetVal
+  }, { merge: true }).then(() => {
+    currentMonthlyBudget = budgetVal;
+    alert("Monthly Budget Saved!");
+    applyFilters();
+  }).catch(err => alert("Failed to save budget: " + err.message));
+}
+
+// Transaction Firestore Operations
 function addTransaction(e) {
   e.preventDefault();
   if (!currentUser) return;
@@ -180,14 +236,14 @@ function fetchTransactionsRealtime() {
     });
 }
 
-// Filter Engine
+// Filters & Dynamic Rendering
 function populateFilterDropdowns() {
   const filterCat = document.getElementById('filter-category');
   if (!filterCat) return;
 
   const uniqueCategories = [...new Set(rawTransactions.map(t => t.category || "General"))];
   filterCat.innerHTML = `<option value="all">All Categories</option>` +
-    uniqueCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+    uniqueCategories.map(c => `<option value="${c}">${categoryIcons[c] || '📌'} ${c}</option>`).join('');
 }
 
 function applyFilters() {
@@ -226,22 +282,22 @@ function renderUI(dataList) {
   let income = 0, expense = 0;
 
   if (dataList.length === 0) {
-    list.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">No matching transactions.</li>';
+    list.innerHTML = '<li style="text-align: center; color: var(--subtext-color); padding: 20px;">No matching transactions.</li>';
   } else {
     dataList.forEach(t => {
       if (t.type === 'income') income += t.amount;
       else expense += t.amount;
 
-      // Compatibility fix for old and new database fields
       const itemTitle = t.desc || t.description || 'Transaction';
       const itemCategory = t.category || 'General';
       const itemDate = t.date || '';
+      const icon = categoryIcons[itemCategory] || '📌';
 
       const li = document.createElement('li');
       li.className = `transaction-item ${t.type}`;
       li.innerHTML = `
         <div>
-          <div class="item-title">${itemTitle}</div>
+          <div class="item-title"><span>${icon}</span> ${itemTitle}</div>
           <div class="item-meta">${itemCategory} • ${itemDate}</div>
         </div>
         <div style="display: flex; align-items: center;">
@@ -259,6 +315,34 @@ function renderUI(dataList) {
   totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
 
   updateChart(income, expense);
+  updateBudgetProgress(expense);
+}
+
+// Budget Progress Calculator
+function updateBudgetProgress(currentTotalExpense) {
+  const progressBar = document.getElementById('budget-progress-bar');
+  const budgetStatus = document.getElementById('budget-status');
+  if (!progressBar || !budgetStatus) return;
+
+  if (currentMonthlyBudget <= 0) {
+    progressBar.style.width = '0%';
+    budgetStatus.textContent = "Set target budget for current month";
+    return;
+  }
+
+  const percentage = Math.min((currentTotalExpense / currentMonthlyBudget) * 100, 100);
+  progressBar.style.width = `${percentage}%`;
+
+  if (percentage < 70) {
+    progressBar.style.backgroundColor = '#2ecc71'; // Green
+    budgetStatus.textContent = `Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
+  } else if (percentage < 90) {
+    progressBar.style.backgroundColor = '#f39c12'; // Orange
+    budgetStatus.textContent = `Warning: Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
+  } else {
+    progressBar.style.backgroundColor = '#e74c3c'; // Red
+    budgetStatus.textContent = `Alert: High spending! Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
+  }
 }
 
 function updateChart(income, expense) {
