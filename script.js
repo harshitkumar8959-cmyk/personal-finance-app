@@ -62,7 +62,6 @@ function toggleDarkMode() {
   applyTheme(newTheme);
 }
 
-// Initial Theme Loading
 const savedTheme = localStorage.getItem('app-theme') || 'light';
 applyTheme(savedTheme);
 
@@ -87,26 +86,6 @@ function updateCategoryOptions() {
 }
 
 // Auth Handlers
-function registerUser() {
-  const email = document.getElementById('register-email')?.value.trim();
-  const password = document.getElementById('register-password')?.value;
-  if (!email || !password) return alert("Fill all fields!");
-
-  auth.createUserWithEmailAndPassword(email, password)
-    .then(() => window.location.href = 'dashboard.html')
-    .catch(err => alert("Error: " + err.message));
-}
-
-function loginUser() {
-  const email = document.getElementById('login-email')?.value.trim();
-  const password = document.getElementById('login-password')?.value;
-  if (!email || !password) return alert("Fill all fields!");
-
-  auth.signInWithEmailAndPassword(email, password)
-    .then(() => window.location.href = 'dashboard.html')
-    .catch(err => alert("Error: " + err.message));
-}
-
 function logoutUser() {
   auth.signOut().then(() => window.location.href = 'login.html');
 }
@@ -114,18 +93,16 @@ function logoutUser() {
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
     const isDashboard = window.location.pathname.includes('dashboard.html');
-    const isLogin = window.location.pathname.includes('login.html');
-    const isRegister = window.location.pathname.includes('register.html');
     const userEmailEl = document.getElementById('user-email-display');
 
     if (user) {
       currentUser = user;
       if (userEmailEl) userEmailEl.textContent = user.email;
-      if (isLogin || isRegister) window.location.href = 'dashboard.html';
       if (isDashboard) {
         initAppUI();
         loadUserSettings();
         fetchTransactionsRealtime();
+        fetchSavingsGoalsRealtime();
       }
     } else {
       currentUser = null;
@@ -164,6 +141,82 @@ function saveMonthlyBudget() {
     alert("Monthly Budget Saved!");
     applyFilters();
   }).catch(err => alert("Failed to save budget: " + err.message));
+}
+
+// Savings Goals Logic (Firestore Realtime)
+function addSavingsGoal(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+
+  const title = document.getElementById('goal-title').value.trim();
+  const target = parseFloat(document.getElementById('goal-target').value);
+  const saved = parseFloat(document.getElementById('goal-saved').value);
+
+  if (!title || isNaN(target) || isNaN(saved) || target <= 0) {
+    alert("Please enter valid Goal info!");
+    return;
+  }
+
+  db.collection("users")
+    .doc(currentUser.uid)
+    .collection("goals")
+    .add({
+      title: title,
+      target: target,
+      saved: saved,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    })
+    .then(() => {
+      document.getElementById('goal-title').value = '';
+      document.getElementById('goal-target').value = '';
+      document.getElementById('goal-saved').value = '';
+    })
+    .catch(err => alert("Goal save failed: " + err.message));
+}
+
+function deleteGoal(goalId) {
+  if (!currentUser) return;
+  if (confirm("Delete this savings goal?")) {
+    db.collection("users").doc(currentUser.uid).collection("goals").doc(goalId).delete();
+  }
+}
+
+function fetchSavingsGoalsRealtime() {
+  if (!currentUser) return;
+
+  db.collection("users")
+    .doc(currentUser.uid)
+    .collection("goals")
+    .orderBy("createdAt", "desc")
+    .onSnapshot((snapshot) => {
+      const goalsList = document.getElementById('goals-list');
+      if (!goalsList) return;
+
+      goalsList.innerHTML = '';
+      if (snapshot.empty) {
+        goalsList.innerHTML = '<p style="color: var(--subtext-color); font-size: 13px; grid-column: 1 / -1;">No savings goals added yet. Add one above!</p>';
+        return;
+      }
+
+      snapshot.forEach(doc => {
+        const goal = doc.data();
+        const percent = Math.min((goal.saved / goal.target) * 100, 100).toFixed(1);
+
+        const goalCard = document.createElement('div');
+        goalCard.className = 'goal-item';
+        goalCard.innerHTML = `
+          <div class="goal-title">
+            <span>🎯 ${goal.title}</span>
+            <button onclick="deleteGoal('${doc.id}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold;">✖</button>
+          </div>
+          <div style="font-size: 12px; color: var(--subtext-color);">₹${goal.saved.toFixed(2)} / ₹${goal.target.toFixed(2)} (${percent}%)</div>
+          <div class="goal-progress-bg">
+            <div class="goal-progress-bar" style="width: ${percent}%;"></div>
+          </div>
+        `;
+        goalsList.appendChild(goalCard);
+      });
+    });
 }
 
 // Transaction Firestore Operations
@@ -366,9 +419,7 @@ function updateChart(income, expense) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
+      plugins: { legend: { position: 'bottom' } }
     }
   });
 }
