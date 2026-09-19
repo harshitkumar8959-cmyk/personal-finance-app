@@ -1,4 +1,5 @@
-// Firebase Configuration (Apne Firebase Console ka real credentials yahan rakhein)
+// Firebase Configuration
+// NOTE: Apne Firebase Console (Project Settings -> General -> Web App) se REAL credentials yahan paste karein
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_AUTH_DOMAIN",
@@ -8,46 +9,70 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// Initialize Firebase
+// Initialize Firebase App
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
+
+// Global Auth Instance
 const auth = firebase.auth();
 
-// Register Function
-async function registerUser() {
-  const email = document.getElementById('register-email').value.trim();
-  const password = document.getElementById('register-password').value;
+// 1. User Registration Handler
+function registerUser() {
+  const emailInput = document.getElementById('register-email');
+  const passwordInput = document.getElementById('register-password');
 
-  if (!email || !password) return alert("Please fill all details!");
+  if (!emailInput || !passwordInput) return;
 
-  try {
-    await auth.createUserWithEmailAndPassword(email, password);
-    alert("Account created successfully!");
-    window.location.href = 'dashboard.html';
-  } catch (error) {
-    alert("Error: " + error.message);
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!email || !password) {
+    alert("Please fill in both email and password!");
+    return;
   }
+
+  auth.createUserWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      alert("Account created successfully!");
+      window.location.href = 'dashboard.html';
+    })
+    .catch((error) => {
+      console.error("Registration Error:", error);
+      alert("Error: " + error.message);
+    });
 }
 
-// Login Function
-async function loginUser() {
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
+// 2. User Login Handler
+function loginUser() {
+  const emailInput = document.getElementById('login-email');
+  const passwordInput = document.getElementById('login-password');
 
-  if (!email || !password) return alert("Please fill all details!");
+  if (!emailInput || !passwordInput) return;
 
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-    window.location.href = 'dashboard.html';
-  } catch (error) {
-    alert("Error: " + error.message);
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!email || !password) {
+    alert("Please enter both email and password!");
+    return;
   }
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      window.location.href = 'dashboard.html';
+    })
+    .catch((error) => {
+      console.error("Login Error:", error);
+      alert("Error: " + error.message);
+    });
 }
 
-// 1. Show/Hide Password Toggle
+// 3. Show / Hide Password Toggle
 function togglePassword(inputId, iconElement) {
   const passwordInput = document.getElementById(inputId);
+  if (!passwordInput) return;
+
   if (passwordInput.type === "password") {
     passwordInput.type = "text";
     iconElement.textContent = "🙈";
@@ -57,19 +82,39 @@ function togglePassword(inputId, iconElement) {
   }
 }
 
-// 2. Forgot Password Handler
-async function handleForgotPassword() {
+// 4. Forgot Password Reset Handler (FIXED)
+function handleForgotPassword() {
   const email = prompt("Enter your registered Email address:");
-  if (!email) {
-    if (email !== null) alert("Email field cannot be empty!");
+
+  if (email === null) {
+    // User clicked Cancel
     return;
   }
 
-  try {
-    await auth.sendPasswordResetEmail(email.trim());
-    alert("Password reset email sent! Please check your inbox.");
-  } catch (error) {
-    console.error("Forgot Password Error:", error);
-    alert("Error: " + error.message);
+  const trimmedEmail = email.trim();
+
+  if (trimmedEmail === "") {
+    alert("Email address cannot be empty!");
+    return;
   }
+
+  // Direct Firebase Authentication Trigger
+  auth.sendPasswordResetEmail(trimmedEmail)
+    .then(() => {
+      alert("Password reset email sent! Please check your Inbox and Spam/Junk folder.");
+    })
+    .catch((error) => {
+      console.error("Password Reset Failed:", error);
+      
+      // Clear human-readable error alerts
+      if (error.code === 'auth/user-not-found') {
+        alert("Is email address se koi account registered nahi hai.");
+      } else if (error.code === 'auth/invalid-email') {
+        alert("Kripya sahi email format daalein.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert("Domain issue: Firebase Console mein Netlify Link (Authorized Domains) add karein.");
+      } else {
+        alert("Reset Error: " + error.message);
+      }
+    });
 }
