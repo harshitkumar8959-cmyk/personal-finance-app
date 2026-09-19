@@ -100,13 +100,17 @@ function updateUserProfileName() {
   currentUser.updateProfile({
     displayName: newName
   }).then(() => {
+    return db.collection("users").doc(currentUser.uid).set({
+      displayName: newName
+    }, { merge: true });
+  }).then(() => {
     document.getElementById('user-display-name').textContent = newName;
     alert("Profile name updated successfully!");
     closeProfileModal();
   }).catch(err => alert("Error updating name: " + err.message));
 }
 
-// Reliable Base64 Picture Upload System
+// Reliable Base64 Picture Upload System (Storage Bypass)
 function uploadProfilePicture() {
   const fileInput = document.getElementById('profile-pic-input');
   const uploadBtn = document.getElementById('btn-upload-pic');
@@ -134,20 +138,17 @@ function uploadProfilePicture() {
     const base64Image = e.target.result;
 
     if (currentUser) {
-      currentUser.updateProfile({
-        photoURL: base64Image
-      }).then(() => {
+      // Direct Firestore Save to prevent Auth profile corruption
+      db.collection("users").doc(currentUser.uid).set({
+        photoURL: base64Image,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true }).then(() => {
         const navAvatar = document.getElementById('user-avatar');
         const modalAvatar = document.getElementById('modal-avatar-preview');
         
         if (navAvatar) navAvatar.src = base64Image;
         if (modalAvatar) modalAvatar.src = base64Image;
 
-        return db.collection("users").doc(currentUser.uid).set({
-          photoURL: base64Image,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-      }).then(() => {
         alert("Profile picture updated successfully!");
         closeProfileModal();
       }).catch(err => {
@@ -210,26 +211,41 @@ function updateCategoryOptions() {
     .join('');
 }
 
-// Auth State Monitor
+// Auth State Monitor (Prevents Infinite Redirect Loop)
 function logoutUser() {
   auth.signOut().then(() => window.location.href = 'login.html');
 }
 
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
-    const isDashboard = window.location.pathname.includes('dashboard.html');
-    const userDisplayEl = document.getElementById('user-display-name');
-    const userAvatarEl = document.getElementById('user-avatar');
-    const modalAvatarEl = document.getElementById('modal-avatar-preview');
+    const isDashboard = window.location.pathname.endsWith('dashboard.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
 
     if (user) {
       currentUser = user;
-      const displayName = user.displayName || user.email.split('@')[0];
-      const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=3498db&color=fff`;
+      let displayName = user.displayName || user.email.split('@')[0];
+      let photoURL = user.photoURL;
 
-      if (userDisplayEl) userDisplayEl.textContent = displayName;
-      if (userAvatarEl) userAvatarEl.src = photoURL;
-      if (modalAvatarEl) modalAvatarEl.src = photoURL;
+      // Firestore doc read to reliably fetch saved Base64 avatar
+      db.collection("users").doc(user.uid).get().then((doc) => {
+        if (doc.exists && doc.data().photoURL) {
+          photoURL = doc.data().photoURL;
+        }
+        if (doc.exists && doc.data().displayName) {
+          displayName = doc.data().displayName;
+        }
+
+        if (!photoURL) {
+          photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=3498db&color=fff`;
+        }
+
+        const userDisplayEl = document.getElementById('user-display-name');
+        const userAvatarEl = document.getElementById('user-avatar');
+        const modalAvatarEl = document.getElementById('modal-avatar-preview');
+
+        if (userDisplayEl) userDisplayEl.textContent = displayName;
+        if (userAvatarEl) userAvatarEl.src = photoURL;
+        if (modalAvatarEl) modalAvatarEl.src = photoURL;
+      }).catch(e => console.log(e));
 
       if (isDashboard) {
         initAppUI();
@@ -237,7 +253,9 @@ function checkAuthState() {
       }
     } else {
       currentUser = null;
-      if (isDashboard) window.location.href = 'login.html';
+      if (isDashboard) {
+        window.location.href = 'login.html';
+      }
     }
   });
 }
@@ -460,7 +478,7 @@ function exportToCSV() {
   document.body.removeChild(link);
 }
 
-// PDF Export (Printing Engine Native)
+// PDF Export (Native Window Print Engine)
 function exportToPDF() {
   const listToExport = (typeof filteredTransactions !== 'undefined' && filteredTransactions.length > 0)
     ? filteredTransactions 
