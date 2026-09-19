@@ -143,7 +143,7 @@ function saveMonthlyBudget() {
   }).catch(err => alert("Failed to save budget: " + err.message));
 }
 
-// Savings Goals Logic (Firestore Realtime)
+// Savings Goals Logic (Firestore Realtime - Index Safe)
 function addSavingsGoal(e) {
   e.preventDefault();
   if (!currentUser) return;
@@ -187,20 +187,21 @@ function fetchSavingsGoalsRealtime() {
   db.collection("users")
     .doc(currentUser.uid)
     .collection("goals")
-    .orderBy("createdAt", "desc")
     .onSnapshot((snapshot) => {
       const goalsList = document.getElementById('goals-list');
       if (!goalsList) return;
 
       goalsList.innerHTML = '';
       if (snapshot.empty) {
-        goalsList.innerHTML = '<p style="color: var(--subtext-color); font-size: 13px; grid-column: 1 / -1;">No savings goals added yet. Add one above!</p>';
+        goalsList.innerHTML = '<p style="color: var(--subtext-color); font-size: 13px; grid-column: 1 / -1; padding: 10px 0;">No savings goals added yet. Add one above!</p>';
         return;
       }
 
       snapshot.forEach(doc => {
         const goal = doc.data();
-        const percent = Math.min((goal.saved / goal.target) * 100, 100).toFixed(1);
+        const targetVal = Number(goal.target) || 1;
+        const savedVal = Number(goal.saved) || 0;
+        const percent = Math.min((savedVal / targetVal) * 100, 100).toFixed(1);
 
         const goalCard = document.createElement('div');
         goalCard.className = 'goal-item';
@@ -209,13 +210,15 @@ function fetchSavingsGoalsRealtime() {
             <span>🎯 ${goal.title}</span>
             <button onclick="deleteGoal('${doc.id}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold;">✖</button>
           </div>
-          <div style="font-size: 12px; color: var(--subtext-color);">₹${goal.saved.toFixed(2)} / ₹${goal.target.toFixed(2)} (${percent}%)</div>
+          <div style="font-size: 12px; color: var(--subtext-color);">₹${savedVal.toFixed(2)} / ₹${targetVal.toFixed(2)} (${percent}%)</div>
           <div class="goal-progress-bg">
             <div class="goal-progress-bar" style="width: ${percent}%;"></div>
           </div>
         `;
         goalsList.appendChild(goalCard);
       });
+    }, (error) => {
+      console.error("Error fetching goals: ", error);
     });
 }
 
@@ -278,7 +281,6 @@ function fetchTransactionsRealtime() {
   db.collection("users")
     .doc(currentUser.uid)
     .collection("transactions")
-    .orderBy("createdAt", "desc")
     .onSnapshot((snapshot) => {
       rawTransactions = [];
       snapshot.forEach(doc => {
