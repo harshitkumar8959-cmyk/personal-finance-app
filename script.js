@@ -13,11 +13,11 @@ if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-// Global Auth Instance
+// Global Instances
 const auth = firebase.auth();
+const db = firebase.firestore();
 
-// Global Array to store transactions in local memory
-let transactions = JSON.parse(localStorage.getItem('user_transactions')) || [];
+let currentUser = null;
 
 // 1. User Registration Handler
 function registerUser() {
@@ -35,7 +35,7 @@ function registerUser() {
   }
 
   auth.createUserWithEmailAndPassword(email, password)
-    .then((userCredential) => {
+    .then(() => {
       alert("Account created successfully!");
       window.location.href = 'dashboard.html';
     })
@@ -61,7 +61,7 @@ function loginUser() {
   }
 
   auth.signInWithEmailAndPassword(email, password)
-    .then((userCredential) => {
+    .then(() => {
       window.location.href = 'dashboard.html';
     })
     .catch((error) => {
@@ -113,7 +113,7 @@ function handleForgotPassword() {
     });
 }
 
-// 5. Auth State Observer (Protect Routes Automatically)
+// 5. Auth State Observer
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
     const isDashboard = window.location.pathname.includes('dashboard.html');
@@ -123,7 +123,7 @@ function checkAuthState() {
     const userEmailElement = document.getElementById('user-email-display');
 
     if (user) {
-      // User is Logged In
+      currentUser = user;
       if (userEmailElement) {
         userEmailElement.textContent = user.email;
       }
@@ -131,10 +131,10 @@ function checkAuthState() {
         window.location.href = 'dashboard.html';
       }
       if (isDashboard) {
-        renderDashboard();
+        fetchTransactionsRealtime();
       }
     } else {
-      // User is NOT Logged In
+      currentUser = null;
       if (isDashboard) {
         window.location.href = 'login.html';
       }
@@ -142,7 +142,6 @@ function checkAuthState() {
   });
 }
 
-// Run auth check
 checkAuthState();
 
 // 6. User Logout Handler
@@ -158,91 +157,122 @@ function logoutUser() {
     });
 }
 
-// --- DASHBOARD TRACKER LOGIC ---
+// --- FIRESTORE DATABASE LOGIC ---
 
 // Add Transaction
 function addTransaction(e) {
   e.preventDefault();
 
+  if (!currentUser) {
+    alert("User session invalid. Please log in again.");
+    return;
+  }
+
   const desc = document.getElementById('desc').value.trim();
   const amount = parseFloat(document.getElementById('amount').value);
   const type = document.getElementById('type').value;
+  const addBtn = document.getElementById('add-btn');
 
   if (!desc || isNaN(amount) || amount <= 0) {
     alert("Please enter a valid description and amount!");
     return;
   }
 
-  const transaction = {
-    id: Date.now(),
-    desc: desc,
-    amount: amount,
-    type: type,
-    date: new Date().toLocaleDateString()
-  };
+  addBtn.disabled = true;
+  addBtn.textContent = "Saving...";
 
-  transactions.push(transaction);
-  saveAndRender();
-
-  // Reset Form
-  document.getElementById('transaction-form').reset();
+  db.collection("users")
+    .doc(currentUser.uid)
+    .collection("transactions")
+    .add({
+      desc: desc,
+      amount: amount,
+      type: type,
+      date: new Date().toLocaleDateString(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    })
+    .then(() => {
+      document.getElementById('transaction-form').reset();
+    })
+    .catch((error) => {
+      console.error("Error adding transaction:", error);
+      alert("Failed to save: " + error.message);
+    })
+    .finally(() => {
+      addBtn.disabled = false;
+      addBtn.textContent = "Add Transaction";
+    });
 }
 
 // Delete Transaction
 function deleteTransaction(id) {
-  transactions = transactions.filter(t => t.id !== id);
-  saveAndRender();
+  if (!currentUser) return;
+
+  db.collection("users")
+    .doc(currentUser.uid)
+    .collection("transactions")
+    .doc(id)
+    .delete()
+    .catch((error) => {
+      console.error("Error deleting transaction:", error);
+      alert("Error deleting item: " + error.message);
+    });
 }
 
-// Save to Local Storage & Render UI
-function saveAndRender() {
-  localStorage.setItem('user_transactions', JSON.stringify(transactions));
-  renderDashboard();
-}
+// Fetch Realtime Transactions
+function fetchTransactionsRealtime() {
+  if (!currentUser) return;
 
-// Render Dashboard UI
-function renderDashboard() {
-  const list = document.getElementById('transaction-list');
-  const totalBalanceEl = document.getElementById('total-balance');
-  const totalIncomeEl = document.getElementById('total-income');
-  const totalExpenseEl = document.getElementById('total-expense');
+  db.collection("users")
+    .doc(currentUser.uid)
+    .collection("transactions")
+    .orderBy("createdAt", "desc")
+    .onSnapshot((snapshot) => {
+      const list = document.getElementById('transaction-list');
+      const totalBalanceEl = document.getElementById('total-balance');
+      const totalIncomeEl = document.getElementById('total-income');
+      const totalExpenseEl = document.getElementById('total-expense');
 
-  if (!list || !totalBalanceEl) return;
+      if (!list || !totalBalanceEl) return;
 
-  list.innerHTML = '';
+      list.innerHTML = '';
+      let income = 0;
+      let expense = 0;
 
-  let income = 0;
-  let expense = 0;
-
-  if (transactions.length === 0) {
-    list.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">No transactions added yet.</li>';
-  } else {
-    transactions.forEach(t => {
-      if (t.type === 'income') {
-        income += t.amount;
+      if (snapshot.empty) {
+        list.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">No transactions added yet.</li>';
       } else {
-        expense += t.amount;
+        snapshot.forEach((doc) => {
+          const t = doc.data();
+          const docId = doc.id;
+
+          if (t.type === 'income') {
+            income += t.amount;
+          } else {
+            expense += t.amount;
+          }
+
+          const li = document.createElement('li');
+          li.className = `transaction-item ${t.type}`;
+          li.innerHTML = `
+            <div class="item-details">
+              <span class="item-title">${t.desc}</span>
+              <span class="item-date">${t.date || ''}</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+              <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
+              <button class="delete-btn" onclick="deleteTransaction('${docId}')">✖</button>
+            </div>
+          `;
+          list.appendChild(li);
+        });
       }
 
-      const li = document.createElement('li');
-      li.className = `transaction-item ${t.type}`;
-      li.innerHTML = `
-        <div class="item-details">
-          <span class="item-title">${t.desc}</span>
-          <span class="item-date">${t.date}</span>
-        </div>
-        <div style="display: flex; align-items: center;">
-          <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
-          <button class="delete-btn" onclick="deleteTransaction(${t.id})">✖</button>
-        </div>
-      `;
-      list.appendChild(li);
+      const balance = income - expense;
+      totalBalanceEl.textContent = `₹${balance.toFixed(2)}`;
+      totalIncomeEl.textContent = `₹${income.toFixed(2)}`;
+      totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
+    }, (error) => {
+      console.error("Firestore Listen Error:", error);
     });
-  }
-
-  const balance = income - expense;
-
-  totalBalanceEl.textContent = `₹${balance.toFixed(2)}`;
-  totalIncomeEl.textContent = `₹${income.toFixed(2)}`;
-  totalExpenseEl.textContent = `₹${expense.toFixed(2)}`;
 }
