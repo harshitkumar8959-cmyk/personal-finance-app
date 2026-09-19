@@ -14,14 +14,13 @@ if (!firebase.apps.length) {
 
 const auth = firebase.auth();
 const db = firebase.firestore();
-const storage = firebase.storage();
 
 let currentUser = null;
 let rawTransactions = [];
 let filteredTransactions = [];
 let financeChartInstance = null;
 
-// Currency Global Configuration
+// Currency Configuration Engine
 const currencyMap = {
   "INR": "₹",
   "USD": "$",
@@ -78,7 +77,7 @@ function toggleDarkMode() {
 }
 applyTheme(localStorage.getItem('app-theme') || 'light');
 
-// Modal Controller for Profile & Security
+// Modal Controller
 function openProfileModal() {
   document.getElementById('profile-modal').classList.add('active');
   if (currentUser) {
@@ -107,25 +106,72 @@ function updateUserProfileName() {
   }).catch(err => alert("Error updating name: " + err.message));
 }
 
+// Reliable Base64 Picture Upload System
 function uploadProfilePicture() {
   const fileInput = document.getElementById('profile-pic-input');
-  const file = fileInput.files[0];
-  if (!file) {
-    alert("Please select an image first!");
+  const uploadBtn = document.getElementById('btn-upload-pic');
+
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    alert("Please select an image file first!");
     return;
   }
 
-  const storageRef = storage.ref(`profile_pics/${currentUser.uid}`);
-  storageRef.put(file).then((snapshot) => {
-    snapshot.ref.getDownloadURL().then((url) => {
-      currentUser.updateProfile({ photoURL: url }).then(() => {
-        document.getElementById('user-avatar').src = url;
-        document.getElementById('modal-avatar-preview').src = url;
-        alert("Profile picture updated!");
+  const file = fileInput.files[0];
+
+  if (file.size > 1024 * 1024) {
+    alert("File size too large! Please upload image under 1MB.");
+    return;
+  }
+
+  if (uploadBtn) {
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = "Uploading...";
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = function (e) {
+    const base64Image = e.target.result;
+
+    if (currentUser) {
+      currentUser.updateProfile({
+        photoURL: base64Image
+      }).then(() => {
+        const navAvatar = document.getElementById('user-avatar');
+        const modalAvatar = document.getElementById('modal-avatar-preview');
+        
+        if (navAvatar) navAvatar.src = base64Image;
+        if (modalAvatar) modalAvatar.src = base64Image;
+
+        return db.collection("users").doc(currentUser.uid).set({
+          photoURL: base64Image,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }).then(() => {
+        alert("Profile picture updated successfully!");
         closeProfileModal();
+      }).catch(err => {
+        console.error("Upload error: ", err);
+        alert("Upload failed: " + err.message);
+      }).finally(() => {
+        if (uploadBtn) {
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "Upload Picture";
+        }
       });
-    });
-  }).catch(err => alert("Upload failed: " + err.message));
+    }
+  };
+
+  reader.onerror = function (error) {
+    console.error("FileReader Error: ", error);
+    alert("Failed to read image file.");
+    if (uploadBtn) {
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = "Upload Picture";
+    }
+  };
+
+  reader.readAsDataURL(file);
 }
 
 function sendPasswordResetEmail() {
@@ -179,7 +225,7 @@ function checkAuthState() {
     if (user) {
       currentUser = user;
       const displayName = user.displayName || user.email.split('@')[0];
-      const photoURL = user.photoURL || 'https://via.placeholder.com/150';
+      const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=3498db&color=fff`;
 
       if (userDisplayEl) userDisplayEl.textContent = displayName;
       if (userAvatarEl) userAvatarEl.src = photoURL;
@@ -354,9 +400,9 @@ function renderUI(dataList) {
   }
 
   const balance = income - expense;
-  totalBalanceEl.textContent = `${symbol}${balance.toFixed(2)}`;
-  totalIncomeEl.textContent = `${symbol}${income.toFixed(2)}`;
-  totalExpenseEl.textContent = `${symbol}${expense.toFixed(2)}`;
+  totalBalanceEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${balance.toFixed(2)}`;
+  totalIncomeEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${income.toFixed(2)}`;
+  totalExpenseEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${expense.toFixed(2)}`;
 
   updateChart(income, expense);
 }
@@ -398,7 +444,6 @@ function exportToCSV() {
     return;
   }
 
-  const symbol = currencyMap[selectedCurrency] || "₹";
   let csvContent = `data:text/csv;charset=utf-8,Description,Amount (${selectedCurrency}),Account,Payment Mode,Type,Category,Date\n`;
 
   listToExport.forEach(t => {
