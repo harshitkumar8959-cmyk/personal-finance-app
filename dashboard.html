@@ -244,6 +244,13 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
     }
 
     .form-group {
@@ -297,8 +304,24 @@
       font-size: 13px;
     }
 
+    .search-input {
+      flex: 1;
+      min-width: 180px;
+    }
+
     .export-btn {
       background-color: #27ae60;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .pdf-btn {
+      background-color: #e74c3c;
       color: white;
       border: none;
       padding: 8px 14px;
@@ -382,6 +405,10 @@
   
   <!-- Chart.js Engine -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- jsPDF & jsPDF-AutoTable for PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -518,10 +545,16 @@
   <div class="list-card">
     <div class="section-title">
       <span>Recent Transactions</span>
-      <button class="export-btn" onclick="exportToCSV()">📥 Export CSV</button>
+      <div class="action-buttons">
+        <button class="export-btn" onclick="exportToCSV()">📥 CSV</button>
+        <button class="pdf-btn" onclick="exportToPDF()">📄 PDF Report</button>
+      </div>
     </div>
 
     <div class="filter-bar">
+      <!-- Real-Time Search Bar -->
+      <input type="text" id="search-query" class="search-input" placeholder="🔍 Search description..." oninput="applyFilters()">
+      
       <select id="filter-category" onchange="applyFilters()">
         <option value="all">All Categories</option>
       </select>
@@ -542,6 +575,6 @@
     </ul>
   </div>
 
-  <script src="script.js?v=7"></script>
+  <script src="script.js?v=8"></script>
 </body>
 </html>
