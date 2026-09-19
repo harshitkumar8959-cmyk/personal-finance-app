@@ -334,13 +334,13 @@ function updateBudgetProgress(currentTotalExpense) {
   progressBar.style.width = `${percentage}%`;
 
   if (percentage < 70) {
-    progressBar.style.backgroundColor = '#2ecc71'; // Green
+    progressBar.style.backgroundColor = '#2ecc71';
     budgetStatus.textContent = `Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
   } else if (percentage < 90) {
-    progressBar.style.backgroundColor = '#f39c12'; // Orange
+    progressBar.style.backgroundColor = '#f39c12';
     budgetStatus.textContent = `Warning: Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
   } else {
-    progressBar.style.backgroundColor = '#e74c3c'; // Red
+    progressBar.style.backgroundColor = '#e74c3c';
     budgetStatus.textContent = `Alert: High spending! Spent ₹${currentTotalExpense.toFixed(2)} of ₹${currentMonthlyBudget.toFixed(2)} (${percentage.toFixed(1)}%)`;
   }
 }
