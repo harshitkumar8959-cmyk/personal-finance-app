@@ -446,14 +446,18 @@ function updateChart(income, expense) {
 
 // Export CSV
 function exportToCSV() {
-  if (filteredTransactions.length === 0) {
+  const listToExport = (typeof filteredTransactions !== 'undefined' && filteredTransactions.length > 0)
+    ? filteredTransactions 
+    : rawTransactions;
+
+  if (!listToExport || listToExport.length === 0) {
     alert("No data available to export!");
     return;
   }
 
   let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Account,Payment Mode,Type,Category,Date\n";
 
-  filteredTransactions.forEach(t => {
+  listToExport.forEach(t => {
     const title = t.desc || t.description || 'Transaction';
     csvContent += `"${title}",${t.amount},"${t.account || 'Personal'}","${t.paymentMode || 'UPI'}",${t.type},"${t.category || 'General'}",${t.date}\n`;
   });
@@ -467,48 +471,69 @@ function exportToCSV() {
   document.body.removeChild(link);
 }
 
-// PDF Invoice/Statement Report Generation
+// Reliable PDF Invoice / Statement Report Generation
 function exportToPDF() {
-  if (filteredTransactions.length === 0) {
-    alert("No transactions to generate PDF!");
+  const listToExport = (typeof filteredTransactions !== 'undefined' && filteredTransactions.length > 0)
+    ? filteredTransactions 
+    : rawTransactions;
+
+  if (!listToExport || listToExport.length === 0) {
+    alert("No transactions available to generate PDF!");
     return;
   }
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-  // Header Section
-  doc.setFontSize(18);
-  doc.setTextColor(44, 62, 80);
-  doc.text("Account Statement / Report", 14, 20);
+    // Document Header
+    doc.setFontSize(18);
+    doc.setTextColor(44, 62, 80);
+    doc.text("Account Statement / Report", 14, 20);
 
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text(`User: ${currentUser ? currentUser.email : 'N/A'}`, 14, 28);
-  doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 14, 34);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`User: ${currentUser ? currentUser.email : 'N/A'}`, 14, 28);
+    doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 14, 34);
 
-  // Table Data Mapping
-  const tableData = filteredTransactions.map(t => [
-    t.date || '',
-    t.desc || t.description || 'Transaction',
-    t.category || 'General',
-    t.account || 'Personal',
-    t.paymentMode || 'UPI',
-    t.type.toUpperCase(),
-    `INR ${t.amount.toFixed(2)}`
-  ]);
+    // Prepare table data (Emojis stripped to prevent PDF crash)
+    const tableData = listToExport.map(t => [
+      t.date || '-',
+      (t.desc || t.description || 'Transaction').replace(/[^\x00-\x7F]/g, ""), 
+      (t.category || 'General').replace(/[^\x00-\x7F]/g, ""),
+      t.account || 'Personal',
+      t.paymentMode || 'UPI',
+      t.type ? t.type.toUpperCase() : 'N/A',
+      `Rs. ${Number(t.amount || 0).toFixed(2)}`
+    ]);
 
-  // Generate AutoTable
-  doc.autoTable({
-    startY: 40,
-    head: [['Date', 'Description', 'Category', 'Account', 'Mode', 'Type', 'Amount']],
-    body: tableData,
-    theme: 'striped',
-    headStyles: { fillColor: [52, 152, 219] },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
-    styles: { fontSize: 9 }
-  });
+    // Use autoTable safely
+    if (typeof doc.autoTable === 'function') {
+      doc.autoTable({
+        startY: 40,
+        head: [['Date', 'Description', 'Category', 'Account', 'Mode', 'Type', 'Amount']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [52, 152, 219] },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        styles: { fontSize: 8, cellPadding: 3 }
+      });
+    } else if (window.jspdfAutoTable) {
+      window.jspdfAutoTable(doc, {
+        startY: 40,
+        head: [['Date', 'Description', 'Category', 'Account', 'Mode', 'Type', 'Amount']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [52, 152, 219] },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        styles: { fontSize: 8, cellPadding: 3 }
+      });
+    }
 
-  // Save PDF File
-  doc.save(`Finance_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+    // Save File
+    doc.save(`Finance_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+  } catch (error) {
+    console.error("PDF Export Error:", error);
+    alert("PDF generate karne me error aaya: " + error.message);
+  }
 }
