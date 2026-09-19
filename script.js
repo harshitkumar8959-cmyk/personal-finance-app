@@ -13,19 +13,82 @@ if (!firebase.apps.length) {
 }
 
 const auth = firebase.auth();
-const db = firebase.firestore();
+
+// Safe Crash-Proof Firestore Init
+let db = null;
+if (typeof firebase.firestore === 'function') {
+  db = firebase.firestore();
+} else {
+  console.warn("Firestore SDK not loaded yet.");
+}
 
 let currentUser = null;
 let rawTransactions = [];
 let filteredTransactions = [];
 let financeChartInstance = null;
 
-// Currency Configuration Engine
-const currencyMap = {
-  "INR": "₹",
-  "USD": "$",
-  "EUR": "€"
-};
+// Password Eye Toggle
+function togglePasswordVisibility(inputId) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+}
+
+// Login Handler
+function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const loginBtn = document.getElementById('login-btn');
+
+  if (!email || !password) {
+    alert("Please fill both Email and Password!");
+    return;
+  }
+
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Logging in...";
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      alert("Login Successful!");
+      window.location.href = "dashboard.html";
+    })
+    .catch((error) => {
+      console.error("Login Error:", error);
+      alert("Login Error: " + error.message);
+    })
+    .finally(() => {
+      loginBtn.disabled = false;
+      loginBtn.textContent = "Login";
+    });
+}
+
+// Forgot Password Handler
+function handleForgotPassword() {
+  const emailInput = document.getElementById('login-email');
+  const email = emailInput ? emailInput.value.trim() : "";
+
+  if (!email) {
+    alert("Please enter your registered Email ID in the input box first!");
+    return;
+  }
+
+  if (confirm(`Send password reset email to ${email}?`)) {
+    auth.sendPasswordResetEmail(email)
+      .then(() => {
+        alert("Password reset link sent! Check your Email inbox/spam.");
+      })
+      .catch((error) => {
+        console.error("Forgot Password Error:", error);
+        alert("Error: " + error.message);
+      });
+  }
+}
+
+// Currency Engine
+const currencyMap = { "INR": "₹", "USD": "$", "EUR": "€" };
 let selectedCurrency = localStorage.getItem('user_currency') || "INR";
 
 function changeCurrency() {
@@ -45,7 +108,7 @@ function updateCurrencySymbolsUI() {
   });
 }
 
-// Category Icons & Definitions
+// Categories & Icons
 const categoryIcons = {
   "Salary": "💰", "Business": "🏢", "Freelance": "💻", "Investment": "📈", "Other Income": "💵",
   "Food & Grocery": "🍔", "Shopping": "🛍️", "Rent": "🏠", "Utilities": "⚡", "Entertainment": "🎬", 
@@ -57,7 +120,7 @@ const categories = {
   expense: ["Food & Grocery", "Shopping", "Rent", "Utilities", "Entertainment", "Health", "Travel", "Other Expense"]
 };
 
-// Dark Mode Toggle Logic
+// Dark Mode Toggle
 function applyTheme(theme) {
   const toggleBtn = document.getElementById('theme-toggle-btn');
   if (theme === 'dark') {
@@ -77,19 +140,22 @@ function toggleDarkMode() {
 }
 applyTheme(localStorage.getItem('app-theme') || 'light');
 
-// Modal Controller
+// Modal Logic
 function openProfileModal() {
-  document.getElementById('profile-modal').classList.add('active');
+  const modal = document.getElementById('profile-modal');
+  if (modal) modal.classList.add('active');
   if (currentUser) {
-    document.getElementById('profile-name-input').value = currentUser.displayName || '';
+    const input = document.getElementById('profile-name-input');
+    if (input) input.value = currentUser.displayName || '';
   }
 }
 
 function closeProfileModal() {
-  document.getElementById('profile-modal').classList.remove('active');
+  const modal = document.getElementById('profile-modal');
+  if (modal) modal.classList.remove('active');
 }
 
-// User Profile & Security Settings Logic
+// Name Update
 function updateUserProfileName() {
   const newName = document.getElementById('profile-name-input').value.trim();
   if (!newName) {
@@ -97,20 +163,19 @@ function updateUserProfileName() {
     return;
   }
 
-  currentUser.updateProfile({
-    displayName: newName
+  currentUser.updateProfile({ displayName: newName }).then(() => {
+    if (db) {
+      return db.collection("users").doc(currentUser.uid).set({ displayName: newName }, { merge: true });
+    }
   }).then(() => {
-    return db.collection("users").doc(currentUser.uid).set({
-      displayName: newName
-    }, { merge: true });
-  }).then(() => {
-    document.getElementById('user-display-name').textContent = newName;
-    alert("Profile name updated successfully!");
+    const nameEl = document.getElementById('user-display-name');
+    if (nameEl) nameEl.textContent = newName;
+    alert("Profile name updated!");
     closeProfileModal();
   }).catch(err => alert("Error updating name: " + err.message));
 }
 
-// Reliable Base64 Picture Upload System (Storage Bypass)
+// Profile Picture Upload
 function uploadProfilePicture() {
   const fileInput = document.getElementById('profile-pic-input');
   const uploadBtn = document.getElementById('btn-upload-pic');
@@ -121,9 +186,8 @@ function uploadProfilePicture() {
   }
 
   const file = fileInput.files[0];
-
   if (file.size > 1024 * 1024) {
-    alert("File size too large! Please upload image under 1MB.");
+    alert("File size too large! Please upload under 1MB.");
     return;
   }
 
@@ -133,28 +197,22 @@ function uploadProfilePicture() {
   }
 
   const reader = new FileReader();
-
   reader.onload = function (e) {
     const base64Image = e.target.result;
-
-    if (currentUser) {
-      // Direct Firestore Save to prevent Auth profile corruption
+    if (currentUser && db) {
       db.collection("users").doc(currentUser.uid).set({
         photoURL: base64Image,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true }).then(() => {
         const navAvatar = document.getElementById('user-avatar');
         const modalAvatar = document.getElementById('modal-avatar-preview');
-        
         if (navAvatar) navAvatar.src = base64Image;
         if (modalAvatar) modalAvatar.src = base64Image;
 
-        alert("Profile picture updated successfully!");
+        alert("Profile picture updated!");
         closeProfileModal();
-      }).catch(err => {
-        console.error("Upload error: ", err);
-        alert("Upload failed: " + err.message);
-      }).finally(() => {
+      }).catch(err => alert("Upload failed: " + err.message))
+      .finally(() => {
         if (uploadBtn) {
           uploadBtn.disabled = false;
           uploadBtn.textContent = "Upload Picture";
@@ -162,33 +220,19 @@ function uploadProfilePicture() {
       });
     }
   };
-
-  reader.onerror = function (error) {
-    console.error("FileReader Error: ", error);
-    alert("Failed to read image file.");
-    if (uploadBtn) {
-      uploadBtn.disabled = false;
-      uploadBtn.textContent = "Upload Picture";
-    }
-  };
-
   reader.readAsDataURL(file);
 }
 
 function sendPasswordResetEmail() {
   if (!currentUser || !currentUser.email) return;
-
   if (confirm(`Send password reset email to ${currentUser.email}?`)) {
     auth.sendPasswordResetEmail(currentUser.email)
-      .then(() => {
-        alert("Password reset email sent! Check your inbox.");
-        closeProfileModal();
-      })
+      .then(() => { alert("Password reset email sent!"); closeProfileModal(); })
       .catch(err => alert("Error: " + err.message));
   }
 }
 
-// App Initialization
+// Dashboard Init
 function initAppUI() {
   const dateInput = document.getElementById('date');
   if (dateInput && !dateInput.value) {
@@ -211,27 +255,30 @@ function updateCategoryOptions() {
     .join('');
 }
 
-// Auth State Monitor (Prevents Infinite Redirect Loop)
+// Auth State Controller
 function logoutUser() {
   auth.signOut().then(() => window.location.href = 'login.html');
 }
 
-function checkAuthState() {
-  auth.onAuthStateChanged((user) => {
-    const isDashboard = window.location.pathname.endsWith('dashboard.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
+auth.onAuthStateChanged((user) => {
+  const currentPage = window.location.pathname.split('/').pop();
+  const isDashboard = currentPage === 'dashboard.html' || currentPage === '';
 
-    if (user) {
-      currentUser = user;
-      let displayName = user.displayName || user.email.split('@')[0];
-      let photoURL = user.photoURL;
+  if (user) {
+    currentUser = user;
+    if (currentPage === 'login.html' || currentPage === 'signup.html') {
+      window.location.href = 'dashboard.html';
+      return;
+    }
 
-      // Firestore doc read to reliably fetch saved Base64 avatar
+    let displayName = user.displayName || user.email.split('@')[0];
+    let photoURL = user.photoURL;
+
+    if (db) {
       db.collection("users").doc(user.uid).get().then((doc) => {
-        if (doc.exists && doc.data().photoURL) {
-          photoURL = doc.data().photoURL;
-        }
-        if (doc.exists && doc.data().displayName) {
-          displayName = doc.data().displayName;
+        if (doc.exists) {
+          if (doc.data().photoURL) photoURL = doc.data().photoURL;
+          if (doc.data().displayName) displayName = doc.data().displayName;
         }
 
         if (!photoURL) {
@@ -246,25 +293,24 @@ function checkAuthState() {
         if (userAvatarEl) userAvatarEl.src = photoURL;
         if (modalAvatarEl) modalAvatarEl.src = photoURL;
       }).catch(e => console.log(e));
-
-      if (isDashboard) {
-        initAppUI();
-        fetchTransactionsRealtime();
-      }
-    } else {
-      currentUser = null;
-      if (isDashboard) {
-        window.location.href = 'login.html';
-      }
     }
-  });
-}
-checkAuthState();
 
-// Add & Fetch Transactions
+    if (isDashboard) {
+      initAppUI();
+      fetchTransactionsRealtime();
+    }
+  } else {
+    currentUser = null;
+    if (isDashboard) {
+      window.location.href = 'login.html';
+    }
+  }
+});
+
+// Transactions CRUD
 function addTransaction(e) {
   e.preventDefault();
-  if (!currentUser) return;
+  if (!currentUser || !db) return;
 
   const desc = document.getElementById('desc').value.trim();
   const amount = parseFloat(document.getElementById('amount').value);
@@ -276,61 +322,52 @@ function addTransaction(e) {
   const btn = document.getElementById('add-btn');
 
   if (!desc || isNaN(amount) || amount <= 0 || !date) {
-    alert("Please enter valid details!");
+    alert("Please fill all valid details!");
     return;
   }
 
   btn.disabled = true;
   btn.textContent = "Saving...";
 
-  db.collection("users")
-    .doc(currentUser.uid)
-    .collection("transactions")
-    .add({
-      desc: desc,
-      amount: amount,
-      account: account || 'Personal',
-      paymentMode: paymentMode || 'UPI',
-      type: type,
-      category: category,
-      date: date,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    })
-    .then(() => {
-      document.getElementById('transaction-form').reset();
-      initAppUI();
-    })
-    .catch(err => alert("Save failed: " + err.message))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = "Add Transaction";
-    });
+  db.collection("users").doc(currentUser.uid).collection("transactions").add({
+    desc: desc,
+    amount: amount,
+    account: account || 'Personal',
+    paymentMode: paymentMode || 'UPI',
+    type: type,
+    category: category,
+    date: date,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    document.getElementById('transaction-form').reset();
+    initAppUI();
+  }).catch(err => alert("Save failed: " + err.message))
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = "Add Transaction";
+  });
 }
 
 function deleteTransaction(id) {
-  if (!currentUser) return;
+  if (!currentUser || !db) return;
   if (confirm("Delete this transaction?")) {
     db.collection("users").doc(currentUser.uid).collection("transactions").doc(id).delete();
   }
 }
 
 function fetchTransactionsRealtime() {
-  if (!currentUser) return;
+  if (!currentUser || !db) return;
 
-  db.collection("users")
-    .doc(currentUser.uid)
-    .collection("transactions")
-    .onSnapshot((snapshot) => {
-      rawTransactions = [];
-      snapshot.forEach(doc => {
-        rawTransactions.push({ id: doc.id, ...doc.data() });
-      });
-      populateFilterDropdowns();
-      applyFilters();
+  db.collection("users").doc(currentUser.uid).collection("transactions").onSnapshot((snapshot) => {
+    rawTransactions = [];
+    snapshot.forEach(doc => {
+      rawTransactions.push({ id: doc.id, ...doc.data() });
     });
+    populateFilterDropdowns();
+    applyFilters();
+  });
 }
 
-// Filter Engine
 function populateFilterDropdowns() {
   const filterCat = document.getElementById('filter-category');
   if (!filterCat) return;
@@ -342,10 +379,10 @@ function populateFilterDropdowns() {
 
 function applyFilters() {
   const searchQuery = (document.getElementById('search-query')?.value || '').toLowerCase().trim();
-  const accountVal = document.getElementById('global-account-filter').value;
-  const catVal = document.getElementById('filter-category').value;
-  const modeVal = document.getElementById('filter-payment-mode').value;
-  const monthVal = document.getElementById('filter-month').value;
+  const accountVal = document.getElementById('global-account-filter')?.value || 'all';
+  const catVal = document.getElementById('filter-category')?.value || 'all';
+  const modeVal = document.getElementById('filter-payment-mode')?.value || 'all';
+  const monthVal = document.getElementById('filter-month')?.value || '';
 
   filteredTransactions = rawTransactions.filter(t => {
     const matchesSearch = !searchQuery || (t.desc || t.description || '').toLowerCase().includes(searchQuery);
@@ -362,14 +399,13 @@ function applyFilters() {
 
 function resetFilters() {
   if (document.getElementById('search-query')) document.getElementById('search-query').value = "";
-  document.getElementById('global-account-filter').value = "all";
-  document.getElementById('filter-category').value = "all";
-  document.getElementById('filter-payment-mode').value = "all";
-  document.getElementById('filter-month').value = "";
+  if (document.getElementById('global-account-filter')) document.getElementById('global-account-filter').value = "all";
+  if (document.getElementById('filter-category')) document.getElementById('filter-category').value = "all";
+  if (document.getElementById('filter-payment-mode')) document.getElementById('filter-payment-mode').value = "all";
+  if (document.getElementById('filter-month')) document.getElementById('filter-month').value = "";
   applyFilters();
 }
 
-// UI Rendering
 function renderUI(dataList) {
   const list = document.getElementById('transaction-list');
   const totalBalanceEl = document.getElementById('total-balance');
@@ -418,9 +454,9 @@ function renderUI(dataList) {
   }
 
   const balance = income - expense;
-  totalBalanceEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${balance.toFixed(2)}`;
-  totalIncomeEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${income.toFixed(2)}`;
-  totalExpenseEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${expense.toFixed(2)}`;
+  if (totalBalanceEl) totalBalanceEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${balance.toFixed(2)}`;
+  if (totalIncomeEl) totalIncomeEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${income.toFixed(2)}`;
+  if (totalExpenseEl) totalExpenseEl.innerHTML = `<span class="currency-symbol">${symbol}</span>${expense.toFixed(2)}`;
 
   updateChart(income, expense);
 }
@@ -451,22 +487,16 @@ function updateChart(income, expense) {
   });
 }
 
-// Export CSV
 function exportToCSV() {
-  const listToExport = (typeof filteredTransactions !== 'undefined' && filteredTransactions.length > 0)
-    ? filteredTransactions 
-    : rawTransactions;
-
+  const listToExport = filteredTransactions.length > 0 ? filteredTransactions : rawTransactions;
   if (!listToExport || listToExport.length === 0) {
     alert("No data available to export!");
     return;
   }
 
   let csvContent = `data:text/csv;charset=utf-8,Description,Amount (${selectedCurrency}),Account,Payment Mode,Type,Category,Date\n`;
-
   listToExport.forEach(t => {
-    const title = t.desc || t.description || 'Transaction';
-    csvContent += `"${title}",${t.amount},"${t.account || 'Personal'}","${t.paymentMode || 'UPI'}",${t.type},"${t.category || 'General'}",${t.date}\n`;
+    csvContent += `"${t.desc || 'Transaction'}",${t.amount},"${t.account || 'Personal'}","${t.paymentMode || 'UPI'}",${t.type},"${t.category || 'General'}",${t.date}\n`;
   });
 
   const encodedUri = encodeURI(csvContent);
@@ -478,14 +508,10 @@ function exportToCSV() {
   document.body.removeChild(link);
 }
 
-// PDF Export (Native Window Print Engine)
 function exportToPDF() {
-  const listToExport = (typeof filteredTransactions !== 'undefined' && filteredTransactions.length > 0)
-    ? filteredTransactions 
-    : rawTransactions;
-
+  const listToExport = filteredTransactions.length > 0 ? filteredTransactions : rawTransactions;
   if (!listToExport || listToExport.length === 0) {
-    alert("No transactions available to generate PDF!");
+    alert("No transactions available!");
     return;
   }
 
@@ -495,7 +521,7 @@ function exportToPDF() {
   let rowsHtml = listToExport.map(t => `
     <tr>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.date || '-'}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">${t.desc || t.description || 'Transaction'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${t.desc || 'Transaction'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.category || 'General'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.account || 'Personal'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.paymentMode || 'UPI'}</td>
@@ -524,24 +550,13 @@ function exportToPDF() {
         <table>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Category</th>
-              <th>Account</th>
-              <th>Mode</th>
-              <th>Type</th>
-              <th>Amount</th>
+              <th>Date</th><th>Description</th><th>Category</th><th>Account</th><th>Mode</th><th>Type</th><th>Amount</th>
             </tr>
           </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>
         <script>
-          window.onload = function() {
-            window.print();
-            setTimeout(function() { window.close(); }, 500);
-          };
+          window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
         </script>
       </body>
     </html>
