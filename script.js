@@ -232,12 +232,17 @@ function renderUI(dataList) {
       if (t.type === 'income') income += t.amount;
       else expense += t.amount;
 
+      // Compatibility fix for old and new database fields
+      const itemTitle = t.desc || t.description || 'Transaction';
+      const itemCategory = t.category || 'General';
+      const itemDate = t.date || '';
+
       const li = document.createElement('li');
       li.className = `transaction-item ${t.type}`;
       li.innerHTML = `
         <div>
-          <div class="item-title">${t.desc}</div>
-          <div class="item-meta">${t.category || 'General'} • ${t.date}</div>
+          <div class="item-title">${itemTitle}</div>
+          <div class="item-meta">${itemCategory} • ${itemDate}</div>
         </div>
         <div style="display: flex; align-items: center;">
           <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
@@ -294,7 +299,8 @@ function exportToCSV() {
   let csvContent = "data:text/csv;charset=utf-8,Description,Amount,Type,Category,Date\n";
 
   rawTransactions.forEach(t => {
-    csvContent += `"${t.desc}",${t.amount},${t.type},"${t.category || 'General'}",${t.date}\n`;
+    const title = t.desc || t.description || 'Transaction';
+    csvContent += `"${title}",${t.amount},${t.type},"${t.category || 'General'}",${t.date}\n`;
   });
 
   const encodedUri = encodeURI(csvContent);
