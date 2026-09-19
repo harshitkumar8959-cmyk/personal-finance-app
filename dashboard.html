@@ -134,7 +134,7 @@
     }
     .add-btn:hover { background-color: #2980b9; }
 
-    /* Filters Section */
+    /* Filters Bar */
     .filter-bar {
       display: flex;
       gap: 10px;
@@ -180,7 +180,7 @@
     .item-amount.income { color: #2ecc71; }
     .item-amount.expense { color: #e74c3c; }
     .delete-btn {
-      background-color: #ff4d4d;
+      background-color: #e74c3c;
       color: white;
       border: none;
       padding: 4px 8px;
@@ -190,20 +190,25 @@
       font-weight: bold;
       margin-left: 10px;
     }
-    .delete-btn:hover { background-color: #cc0000; }
+    .delete-btn:hover { background-color: #c0392b; }
 
-    .chart-container {
+    /* Fixed Canvas Sizing */
+    .chart-wrapper {
       position: relative;
-      max-width: 320px;
-      margin: 0 auto;
+      height: 260px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
   </style>
 
-  <!-- Firebase v9 Compat SDKs -->
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <!-- Chart.js CDN -->
+  
+  <!-- Chart.js Engine -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -254,7 +259,7 @@
         <div class="form-group">
           <label for="category">Category</label>
           <select id="category">
-            <!-- Dynamically populated -->
+            <!-- Loaded via script -->
           </select>
         </div>
         <div class="form-group">
@@ -265,10 +270,10 @@
       </form>
     </div>
 
-    <!-- Analytics Chart -->
+    <!-- Analytics Chart Container -->
     <div class="chart-card">
       <h2 class="section-title">Income vs Expense Chart</h2>
-      <div class="chart-container">
+      <div class="chart-wrapper">
         <canvas id="financeChart"></canvas>
       </div>
     </div>
