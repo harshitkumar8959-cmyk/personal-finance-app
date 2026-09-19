@@ -1,6 +1,6 @@
-// Firebase Configuration (Corrected API Key)
+// Firebase Configuration (From Firebase Console)
 const firebaseConfig = {
-  apiKey: "AIzaSyCHkgJ4Bh9EHKraQFT6-9hbOvTcxeARXMo",
+  apiKey: "AIzaSyCHkgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
   authDomain: "personal-finance-app-7506a.firebaseapp.com",
   projectId: "personal-finance-app-7506a",
   storageBucket: "personal-finance-app-7506a.firebasestorage.app",
