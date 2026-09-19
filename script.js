@@ -1,4 +1,4 @@
-// Firebase Config
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCHkgJ4Bh9EHKraQFT6-9HbOvTcxeARXMo",
   authDomain: "personal-finance-app-7506a.firebaseapp.com",
@@ -19,33 +19,33 @@ let currentUser = null;
 let rawTransactions = [];
 let financeChartInstance = null;
 
-// Default Category Options
+// Categories Definition
 const categories = {
   income: ["Salary", "Business", "Freelance", "Investment", "Other Income"],
   expense: ["Food & Grocery", "Rent", "Utilities", "Shopping", "Entertainment", "Health", "Travel", "Other Expense"]
 };
 
-// Auto-set today's date in form
-document.addEventListener("DOMContentLoaded", () => {
+// Initial Setup
+function initAppUI() {
   const dateInput = document.getElementById('date');
-  if (dateInput) {
+  if (dateInput && !dateInput.value) {
     dateInput.value = new Date().toISOString().split('T')[0];
   }
   updateCategoryOptions();
-});
+}
 
 function updateCategoryOptions() {
   const typeSelect = document.getElementById('type');
   const catSelect = document.getElementById('category');
   if (!typeSelect || !catSelect) return;
 
-  const selectedType = typeSelect.value;
+  const selectedType = typeSelect.value || 'income';
   catSelect.innerHTML = categories[selectedType]
     .map(c => `<option value="${c}">${c}</option>`)
     .join('');
 }
 
-// 1. Auth Handlers
+// Auth Handlers
 function registerUser() {
   const email = document.getElementById('register-email')?.value.trim();
   const password = document.getElementById('register-password')?.value;
@@ -86,7 +86,7 @@ function handleForgotPassword() {
   }
 }
 
-// 2. Auth State Observer
+// Auth State Listener
 function checkAuthState() {
   auth.onAuthStateChanged((user) => {
     const isDashboard = window.location.pathname.includes('dashboard.html');
@@ -98,7 +98,10 @@ function checkAuthState() {
       currentUser = user;
       if (userEmailEl) userEmailEl.textContent = user.email;
       if (isLogin || isRegister) window.location.href = 'dashboard.html';
-      if (isDashboard) fetchTransactionsRealtime();
+      if (isDashboard) {
+        initAppUI();
+        fetchTransactionsRealtime();
+      }
     } else {
       currentUser = null;
       if (isDashboard) window.location.href = 'login.html';
@@ -107,7 +110,7 @@ function checkAuthState() {
 }
 checkAuthState();
 
-// 3. Firestore Logic
+// Firestore Operations
 function addTransaction(e) {
   e.preventDefault();
   if (!currentUser) return;
@@ -140,8 +143,7 @@ function addTransaction(e) {
     })
     .then(() => {
       document.getElementById('transaction-form').reset();
-      document.getElementById('date').value = new Date().toISOString().split('T')[0];
-      updateCategoryOptions();
+      initAppUI();
     })
     .catch(err => alert("Save failed: " + err.message))
     .finally(() => {
@@ -178,7 +180,7 @@ function fetchTransactionsRealtime() {
     });
 }
 
-// 4. Filtering & Rendering Logic
+// Filter Engine
 function populateFilterDropdowns() {
   const filterCat = document.getElementById('filter-category');
   if (!filterCat) return;
@@ -211,6 +213,7 @@ function resetFilters() {
   renderUI(rawTransactions);
 }
 
+// UI Render & Chart Integration
 function renderUI(dataList) {
   const list = document.getElementById('transaction-list');
   const totalBalanceEl = document.getElementById('total-balance');
@@ -238,7 +241,7 @@ function renderUI(dataList) {
         </div>
         <div style="display: flex; align-items: center;">
           <span class="item-amount ${t.type}">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</span>
-          <button class="delete-btn" onclick="deleteTransaction('${t.id}')">Delete</button>
+          <button class="delete-btn" onclick="deleteTransaction('${t.id}')">✖</button>
         </div>
       `;
       list.appendChild(li);
@@ -253,7 +256,6 @@ function renderUI(dataList) {
   updateChart(income, expense);
 }
 
-// 5. Chart.js Integration
 function updateChart(income, expense) {
   const ctx = document.getElementById('financeChart');
   if (!ctx) return;
@@ -274,6 +276,7 @@ function updateChart(income, expense) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { position: 'bottom' }
       }
@@ -281,7 +284,7 @@ function updateChart(income, expense) {
   });
 }
 
-// 6. Export to CSV Feature
+// Export CSV
 function exportToCSV() {
   if (rawTransactions.length === 0) {
     alert("No data available to export!");
